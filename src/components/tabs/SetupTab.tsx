@@ -27,8 +27,19 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
     insuranceAnnual,
     floodAnnual,
     sellerCreditPct,
+    gasMonthly,
+    waterMonthly,
+    electricMonthly,
+    internetMonthly,
+    tvMonthly,
   } = inputs;
-  const { loanAmount, monthlyPMI, pmiAnnual, sellerCreditAmount } = plan;
+  const {
+    loanAmount,
+    monthlyPMI,
+    pmiAnnual,
+    sellerCreditAmount,
+    monthlyUtilities,
+  } = plan;
 
   return (
     <>
@@ -212,6 +223,64 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
                 before excluding it.
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <SectionTitle
+        title="Estimated utilities"
+        note="Not part of your mortgage payment, but folded into the payment figures at the top of the page so you can see your full monthly housing cost."
+      />
+      <Card className="mb-6">
+        <CardContent>
+          <div className="grid md:grid-cols-3 gap-4">
+            <Field label="Gas (monthly)">
+              <NumberInput
+                value={gasMonthly}
+                onChange={(v) => onChange({ gasMonthly: v })}
+                prefix="$"
+                step={5}
+              />
+            </Field>
+            <Field label="Water (monthly)">
+              <NumberInput
+                value={waterMonthly}
+                onChange={(v) => onChange({ waterMonthly: v })}
+                prefix="$"
+                step={5}
+              />
+            </Field>
+            <Field label="Electric (monthly)">
+              <NumberInput
+                value={electricMonthly}
+                onChange={(v) => onChange({ electricMonthly: v })}
+                prefix="$"
+                step={5}
+              />
+            </Field>
+            <Field label="Internet (monthly)">
+              <NumberInput
+                value={internetMonthly}
+                onChange={(v) => onChange({ internetMonthly: v })}
+                prefix="$"
+                step={5}
+              />
+            </Field>
+            <Field label="TV / streaming (monthly)">
+              <NumberInput
+                value={tvMonthly}
+                onChange={(v) => onChange({ tvMonthly: v })}
+                prefix="$"
+                step={5}
+              />
+            </Field>
+          </div>
+          <div className="mt-4 text-sm text-slate-600">
+            Utilities subtotal:{" "}
+            <span className="font-semibold">{usd0(monthlyUtilities)}/mo</span>
+            {hoaMonthly > 0 && (
+              <> · plus {usd0(hoaMonthly)}/mo HOA (set above)</>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -26,8 +26,14 @@ export interface RefiPlan {
   refiClosingCosts: number;
   newLoanAmount: number;
   payment: number;
+  totalMonthly: number;
+  continuedExtra: number;
+  payoffMonths: number;
   totalInterest: number;
   balances: number[];
+  baseBalances: number[];
+  basePayoffMonths: number;
+  baseTotalInterest: number;
   paymentDelta: number;
   interestSaved: number;
   netSavings: number;
@@ -55,6 +61,7 @@ export interface ChartRow {
   baseline: number;
   accelerated: number;
   refi?: number;
+  refiBase?: number;
 }
 
 export type CompareChartRow = { year: number } & Record<string, number>;
@@ -84,7 +91,15 @@ export interface MortgagePlan {
   monthlyInsurance: number;
   monthlyFlood: number;
   monthlyPMI: number;
+  monthlyUtilities: number;
   baseMonthlyCosts: number;
+  basePaymentNoExtra: number;
+  effectiveTotalInterest: number;
+  effectivePayoffMonths: number;
+  effectiveMonthsSaved: number;
+  effectiveYearsSavedWhole: number;
+  effectiveMonthsSavedRem: number;
+  effectiveInterestSaved: number;
   totalMonthlyY1: number;
   totalMonthlyY2: number;
   totalMonthlySteadyState: number;
@@ -108,7 +123,6 @@ export interface MortgagePlan {
   totalSellerAsk: number;
   sellerCreditExceedsCap: boolean;
   cashToCloseSub: string | null;
-  summaryCardCount: number;
   holdMonths: number;
   termData: TermData[];
   t30: TermData;
@@ -145,6 +159,13 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     refiTerm,
     refiRate,
     refiClosingCostPct,
+    continueExtraAfterRefi,
+    refiExtraOverride,
+    gasMonthly,
+    waterMonthly,
+    electricMonthly,
+    internetMonthly,
+    tvMonthly,
   } = inputs;
 
   const rate = rates[term];
@@ -218,6 +239,23 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     };
   }
 
+  const pmiAnnual = downPct < 20 ? loanAmount * 0.006 : 0;
+
+  const monthlyTax = propertyTax / 12;
+  const monthlyInsurance = insuranceAnnual / 12;
+  const monthlyFlood = includeFlood ? floodAnnual / 12 : 0;
+  const monthlyPMI = pmiAnnual / 12;
+  const monthlyUtilities =
+    gasMonthly + waterMonthly + electricMonthly + internetMonthly + tvMonthly;
+  const baseMonthlyCosts =
+    monthlyTax +
+    monthlyInsurance +
+    monthlyFlood +
+    hoaMonthly +
+    monthlyPMI +
+    monthlyUtilities;
+  const basePaymentNoExtra = standardPI + baseMonthlyCosts;
+
   let refiPlan: RefiPlan | null = null;
   if (refiEnabled) {
     const refiMonth = Math.min(refiYear * 12, accelerated.balances.length - 1);
@@ -228,7 +266,11 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
 
     const refiClosingCosts = (balanceAtRefi * refiClosingCostPct) / 100;
     const newLoanAmount = balanceAtRefi + refiClosingCosts;
-    const refiAm = amortize(newLoanAmount, refiRate, refiTerm, 0);
+    const continuedExtra = continueExtraAfterRefi
+      ? (refiExtraOverride ?? extraSteady)
+      : 0;
+    const refiAm = amortize(newLoanAmount, refiRate, refiTerm, continuedExtra);
+    const refiAmBase = amortize(newLoanAmount, refiRate, refiTerm, 0);
 
     const paymentDelta = refiAm.payment - standardPI;
     const refiInterestSaved = remainingInterestIfNoRefi - refiAm.totalInterest;
@@ -237,7 +279,7 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
       paymentDelta < 0
         ? Math.ceil(refiClosingCosts / Math.abs(paymentDelta))
         : null;
-    const newPayoffYear = refiYear + refiTerm;
+    const newPayoffYear = refiYear + refiAm.months / 12;
     const originalPayoffYear = accelerated.months / 12;
 
     refiPlan = {
@@ -247,8 +289,14 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
       refiClosingCosts,
       newLoanAmount,
       payment: refiAm.payment,
+      totalMonthly: refiAm.payment + baseMonthlyCosts + continuedExtra,
+      continuedExtra,
+      payoffMonths: refiAm.months,
       totalInterest: refiAm.totalInterest,
       balances: refiAm.balances,
+      baseBalances: refiAmBase.balances,
+      basePayoffMonths: refiAmBase.months,
+      baseTotalInterest: refiAmBase.totalInterest,
       paymentDelta,
       interestSaved: refiInterestSaved,
       netSavings,
@@ -258,14 +306,19 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     };
   }
 
-  const pmiAnnual = downPct < 20 ? loanAmount * 0.006 : 0;
-
-  const monthlyTax = propertyTax / 12;
-  const monthlyInsurance = insuranceAnnual / 12;
-  const monthlyFlood = includeFlood ? floodAnnual / 12 : 0;
-  const monthlyPMI = pmiAnnual / 12;
-  const baseMonthlyCosts =
-    monthlyTax + monthlyInsurance + monthlyFlood + hoaMonthly + monthlyPMI;
+  const effectiveTotalInterest = refiPlan
+    ? accelerated.totalInterest -
+      refiPlan.remainingInterestIfNoRefi +
+      refiPlan.totalInterest
+    : accelerated.totalInterest;
+  const effectivePayoffMonths = refiPlan
+    ? refiPlan.refiMonth + refiPlan.payoffMonths
+    : accelerated.months;
+  const effectiveMonthsSaved = baseline.months - effectivePayoffMonths;
+  const effectiveYearsSavedWhole = Math.floor(effectiveMonthsSaved / 12);
+  const effectiveMonthsSavedRem = effectiveMonthsSaved % 12;
+  const effectiveInterestSaved =
+    baseline.totalInterest - effectiveTotalInterest;
 
   const totalMonthlyY1 =
     (buydown ? y1Payment : standardPI) + baseMonthlyCosts + extraY1;
@@ -318,7 +371,6 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
   const cashToCloseSub = cashToCloseNotes.length
     ? cashToCloseNotes.join(" · ")
     : null;
-  const summaryCardCount = (buydown ? 3 : 2) + (refiPlan ? 1 : 0) + 2;
 
   const holdMonths = holdYears * 12;
   const termData: TermData[] = TERMS.map((t) => {
@@ -364,7 +416,9 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     Math.ceil(baseline.months / 12),
     Math.ceil(accelerated.months / 12),
     refiPlan ? refiPlan.newPayoffYear : 0,
+    refiPlan ? refiYear + refiPlan.basePayoffMonths / 12 : 0,
   );
+  const showRefiBaseLine = !!refiPlan && refiPlan.continuedExtra > 0;
   const chartData: ChartRow[] = [];
   for (let y = 0; y <= maxYears; y += 1) {
     const m = y * 12;
@@ -377,13 +431,23 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     };
     if (refiPlan) {
       row.refi =
-        y <= refiYear
+        y < refiYear
           ? (accelerated.balances[
               Math.min(m, accelerated.balances.length - 1)
             ] ?? 0)
           : (refiPlan.balances[
               Math.min((y - refiYear) * 12, refiPlan.balances.length - 1)
             ] ?? 0);
+      if (showRefiBaseLine) {
+        row.refiBase =
+          y < refiYear
+            ? (accelerated.balances[
+                Math.min(m, accelerated.balances.length - 1)
+              ] ?? 0)
+            : (refiPlan.baseBalances[
+                Math.min((y - refiYear) * 12, refiPlan.baseBalances.length - 1)
+              ] ?? 0);
+      }
     }
     chartData.push(row);
   }
@@ -413,7 +477,15 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     monthlyInsurance,
     monthlyFlood,
     monthlyPMI,
+    monthlyUtilities,
     baseMonthlyCosts,
+    basePaymentNoExtra,
+    effectiveTotalInterest,
+    effectivePayoffMonths,
+    effectiveMonthsSaved,
+    effectiveYearsSavedWhole,
+    effectiveMonthsSavedRem,
+    effectiveInterestSaved,
     totalMonthlyY1,
     totalMonthlyY2,
     totalMonthlySteadyState,
@@ -437,7 +509,6 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     totalSellerAsk,
     sellerCreditExceedsCap,
     cashToCloseSub,
-    summaryCardCount,
     holdMonths,
     termData,
     t30,

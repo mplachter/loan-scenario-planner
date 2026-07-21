@@ -37,7 +37,13 @@ export function loadStore(): ScenarioStore {
     if (!raw) return freshStore();
     const parsed = JSON.parse(raw) as ScenarioStore;
     if (!parsed.scenarios || parsed.scenarios.length === 0) return freshStore();
-    return parsed;
+    return {
+      ...parsed,
+      scenarios: parsed.scenarios.map((s) => ({
+        ...s,
+        inputs: { ...DEFAULT_INPUTS, ...s.inputs },
+      })),
+    };
   } catch {
     return freshStore();
   }

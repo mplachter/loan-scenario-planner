@@ -27,7 +27,7 @@ Single-page app, one active "scenario" at a time:
 - `App.tsx` — top-level layout; wires `useScenarios` to `ScenarioBar` and `MortgageCalculator`.
 - `hooks/useScenarios.ts` — owns the `ScenarioStore` (list of named scenarios + active id), persisted via `lib/scenarios.ts` (`localStorage`, key `loan-scenario-planner:v1`). All scenario CRUD (create/rename/delete/select) and input patching flows through here. Save failures (e.g. quota) are swallowed by design — persistence is a non-critical enhancement, not a correctness requirement.
 - `lib/defaults.ts` — the `LoanInputs` shape (every user-editable field) and `DEFAULT_INPUTS`. This is the single source of truth for what a scenario stores.
-- `lib/plan.ts` — `computeMortgagePlan(inputs): MortgagePlan`, a pure function that derives *everything* the UI displays (payments, amortization, closing costs, comparisons) from `LoanInputs`. See `src/lib/CLAUDE.md` for the domain logic in here.
+- `lib/plan.ts` — `computeMortgagePlan(inputs): MortgagePlan`, a pure function that derives _everything_ the UI displays (payments, amortization, closing costs, comparisons) from `LoanInputs`. See `src/lib/CLAUDE.md` for the domain logic in here.
 - `lib/mortgage.ts` — low-level amortization math (`pmt`, `amortize`) that `plan.ts` builds on.
 - `components/MortgageCalculator.tsx` — renders the summary stat cards + tab shell; calls `computeMortgagePlan` once per render and passes the resulting `plan` down.
 - `components/tabs/*` — `SetupTab`, `StrategyTab`, `CompareTab`, `ClosingTab`. Each receives `{ inputs, onChange, plan }` and reads whichever slice of `plan`/`inputs` it needs — no tab-local derived state.

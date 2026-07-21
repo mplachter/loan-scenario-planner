@@ -38,6 +38,13 @@ export interface LoanInputs {
   refiTerm: LoanTerm;
   refiRate: number;
   refiClosingCostPct: number;
+  continueExtraAfterRefi: boolean;
+  refiExtraOverride: number | null;
+  gasMonthly: number;
+  waterMonthly: number;
+  electricMonthly: number;
+  internetMonthly: number;
+  tvMonthly: number;
 }
 
 export const DEFAULT_INPUTS: LoanInputs = {
@@ -66,4 +73,11 @@ export const DEFAULT_INPUTS: LoanInputs = {
   refiTerm: 30,
   refiRate: 5.9,
   refiClosingCostPct: 2,
+  continueExtraAfterRefi: true,
+  refiExtraOverride: null,
+  gasMonthly: 50,
+  waterMonthly: 60,
+  electricMonthly: 150,
+  internetMonthly: 70,
+  tvMonthly: 20,
 };

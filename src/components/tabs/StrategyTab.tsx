@@ -41,6 +41,8 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
     refiTerm,
     refiRate,
     refiClosingCostPct,
+    continueExtraAfterRefi,
+    refiExtraOverride,
   } = inputs;
   const {
     rate,
@@ -51,6 +53,7 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
     extraY1,
     extraY2,
     extraMonthly,
+    extraSteady,
     accelerated,
     monthsSaved,
     yearsSavedWhole,
@@ -254,10 +257,25 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
                   <Line
                     type="monotone"
                     dataKey="refi"
-                    name={`Refi in yr ${refiYear}`}
+                    name={
+                      refiPlan.continuedExtra > 0
+                        ? `Refi in yr ${refiYear} + extra`
+                        : `Refi in yr ${refiYear}`
+                    }
                     stroke="#c026d3"
                     strokeWidth={2}
                     strokeDasharray="5 3"
+                    dot={false}
+                  />
+                )}
+                {refiPlan && refiPlan.continuedExtra > 0 && (
+                  <Line
+                    type="monotone"
+                    dataKey="refiBase"
+                    name={`Refi in yr ${refiYear}, P&I only`}
+                    stroke="#e9a5f1"
+                    strokeWidth={2}
+                    strokeDasharray="2 2"
                     dot={false}
                   />
                 )}
@@ -395,6 +413,51 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
 
           {refiEnabled && refiPlan && (
             <>
+              {extraMode !== "none" && (
+                <div className="mb-4 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-slate-700">
+                        Continue extra payments after refinancing
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Keep paying extra toward the new loan's principal
+                        instead of dropping back to the standard payment.
+                      </div>
+                    </div>
+                    <Switch
+                      checked={continueExtraAfterRefi}
+                      onCheckedChange={(checked) =>
+                        onChange({ continueExtraAfterRefi: checked })
+                      }
+                    />
+                  </div>
+                  {continueExtraAfterRefi && (
+                    <div className="mt-3 max-w-xs">
+                      <Field
+                        label="Continued extra payment (monthly)"
+                        hint="Defaults to matching your current extra payment. Refinancing into a fresh term lowers the required minimum payment, so raise this if you want the new loan to pay off just as fast."
+                      >
+                        <NumberInput
+                          value={refiExtraOverride ?? extraSteady}
+                          onChange={(v) => onChange({ refiExtraOverride: v })}
+                          prefix="$"
+                          step={25}
+                        />
+                      </Field>
+                      {refiExtraOverride !== null && (
+                        <button
+                          type="button"
+                          onClick={() => onChange({ refiExtraOverride: null })}
+                          className="text-xs px-2 py-1 mt-2 rounded border border-slate-300 hover:border-slate-400 text-slate-600"
+                        >
+                          Match my extra payment ({usd0(extraSteady)}/mo)
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <Field
                   label={`Refinance in year ${refiYear}`}

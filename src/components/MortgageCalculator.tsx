@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Stat } from "@/components/ui/stat";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import { computeMortgagePlan } from "@/lib/plan";
 import { usd0 } from "@/lib/mortgage";
 import type { LoanInputs } from "@/lib/defaults";
@@ -12,19 +18,14 @@ import { ClosingTab } from "@/components/tabs/ClosingTab";
 
 export type TabId = "setup" | "strategy" | "compare" | "closing";
 
+const ACTIVE_TAB_STORAGE_KEY = "loan-scenario-planner:active-tab";
+
 const TABS: { id: TabId; label: string }[] = [
   { id: "setup", label: "Setup" },
   { id: "strategy", label: "Strategy" },
   { id: "compare", label: "Compare terms" },
   { id: "closing", label: "Closing" },
 ];
-
-const GRID_COLS_MD: Record<number, string> = {
-  4: "md:grid-cols-4",
-  5: "md:grid-cols-5",
-  6: "md:grid-cols-6",
-  7: "md:grid-cols-7",
-};
 
 interface MortgageCalculatorProps {
   inputs: LoanInputs;
@@ -35,7 +36,23 @@ export function MortgageCalculator({
   inputs,
   onChange,
 }: MortgageCalculatorProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("setup");
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    try {
+      const stored = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+      if (TABS.some((t) => t.id === stored)) return stored as TabId;
+    } catch {
+      // non-critical enhancement; ignore quota/availability errors
+    }
+    return "setup";
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab);
+    } catch {
+      // non-critical enhancement; ignore quota/availability errors
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (inputs.extraMode === "match15" && inputs.term <= 15)
@@ -61,78 +78,211 @@ export function MortgageCalculator({
 
   return (
     <>
-      <div
-        className={`grid grid-cols-2 ${GRID_COLS_MD[plan.summaryCardCount] ?? "md:grid-cols-4"} gap-3 mb-5`}
-      >
-        {buydown ? (
-          <>
+      <div className="mb-5">
+        <Card className="mb-3">
+          <CardContent className="p-4">
+            <Tooltip>
+              <TooltipTrigger className="w-full text-left cursor-help">
+                <div className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                  Your payment <Info className="size-3" />
+                </div>
+                <div className="text-2xl md:text-3xl font-bold tabular-nums text-slate-900">
+                  {usd0(totalMonthlySteadyState)}
+                  <span className="text-base font-normal text-slate-500">
+                    /mo
+                  </span>
+                </div>
+                {plan.extraSteady > 0 && (
+                  <div className="text-sm text-slate-600 mt-1">
+                    Base, no extra: {usd0(plan.basePaymentNoExtra)}/mo
+                  </div>
+                )}
+                {buydown && (
+                  <div className="text-xs text-slate-500 mt-1">
+                    Y1 {usd0(totalMonthlyY1)} → Y2 {usd0(totalMonthlyY2)} → Y3+{" "}
+                    {usd0(totalMonthlySteadyState)}
+                  </div>
+                )}
+                {plan.extraSteady > 0 && (
+                  <div className="text-xs text-teal-700 mt-1">
+                    includes {usd0(plan.extraSteady)}/mo extra toward principal
+                  </div>
+                )}
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-4">
+                    <span>Principal &amp; interest</span>
+                    <span>{usd0(standardPI)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span>Property tax</span>
+                    <span>{usd0(plan.monthlyTax)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span>Insurance</span>
+                    <span>{usd0(plan.monthlyInsurance)}</span>
+                  </div>
+                  {inputs.includeFlood && (
+                    <div className="flex justify-between gap-4">
+                      <span>Flood insurance</span>
+                      <span>{usd0(plan.monthlyFlood)}</span>
+                    </div>
+                  )}
+                  {plan.monthlyPMI > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span>PMI</span>
+                      <span>{usd0(plan.monthlyPMI)}</span>
+                    </div>
+                  )}
+                  {inputs.hoaMonthly > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span>HOA</span>
+                      <span>{usd0(inputs.hoaMonthly)}</span>
+                    </div>
+                  )}
+                  {plan.monthlyUtilities > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span>Utilities</span>
+                      <span>{usd0(plan.monthlyUtilities)}</span>
+                    </div>
+                  )}
+                  {plan.extraSteady > 0 && (
+                    <div className="flex justify-between gap-4">
+                      <span>Extra principal</span>
+                      <span>{usd0(plan.extraSteady)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4 border-t border-slate-700 pt-1 font-semibold">
+                    <span>Total</span>
+                    <span>{usd0(totalMonthlySteadyState)}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </CardContent>
+        </Card>
+
+        <div
+          className={`grid grid-cols-2 ${refiPlan ? "md:grid-cols-5" : "md:grid-cols-4"} gap-3`}
+        >
+          <Card>
+            <CardContent className="p-4">
+              <Tooltip>
+                <TooltipTrigger className="w-full text-left cursor-help">
+                  <Stat
+                    label="Years saved"
+                    tone="positive"
+                    value={
+                      plan.effectiveMonthsSaved > 0
+                        ? `${plan.effectiveYearsSavedWhole}y ${plan.effectiveMonthsSavedRem}m`
+                        : "—"
+                    }
+                  />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Payoff in {Math.floor(plan.effectivePayoffMonths / 12)}y{" "}
+                  {plan.effectivePayoffMonths % 12}m with your plan vs.{" "}
+                  {Math.floor(plan.baseline.months / 12)}y{" "}
+                  {plan.baseline.months % 12}m on the standard schedule
+                  {refiPlan ? " (including the modeled refinance)" : ""}.
+                </TooltipContent>
+              </Tooltip>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <Tooltip>
+                <TooltipTrigger className="w-full text-left cursor-help">
+                  <Stat
+                    label="Interest saved"
+                    tone="positive"
+                    value={
+                      plan.effectiveInterestSaved > 0
+                        ? usd0(plan.effectiveInterestSaved)
+                        : "—"
+                    }
+                  />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Total interest paid: {usd0(plan.effectiveTotalInterest)} with
+                  your plan vs. {usd0(plan.baseline.totalInterest)} on the
+                  standard schedule
+                  {refiPlan ? " (including the modeled refinance)" : ""}.
+                </TooltipContent>
+              </Tooltip>
+            </CardContent>
+          </Card>
+
+          {refiPlan && (
             <Card>
               <CardContent className="p-4">
-                <Stat label="Payment — year 1" value={usd0(totalMonthlyY1)} />
+                <Tooltip>
+                  <TooltipTrigger className="w-full text-left cursor-help">
+                    <Stat
+                      label={`Refi payment (yr ${refiYear}+)`}
+                      value={`${usd0(refiPlan.totalMonthly)}/mo`}
+                      sub={`${refiTerm}yr @ ${refiRate.toFixed(2)}%`}
+                      tone={
+                        refiPlan.paymentDelta <= 0 ? "positive" : "negative"
+                      }
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <div className="space-y-1">
+                      <div className="flex justify-between gap-4">
+                        <span>New P&amp;I</span>
+                        <span>{usd0(refiPlan.payment)}</span>
+                      </div>
+                      <div className="flex justify-between gap-4">
+                        <span>Taxes/insurance/HOA/PMI/utilities</span>
+                        <span>{usd0(plan.baseMonthlyCosts)}</span>
+                      </div>
+                      {refiPlan.continuedExtra > 0 && (
+                        <div className="flex justify-between gap-4">
+                          <span>Continued extra</span>
+                          <span>{usd0(refiPlan.continuedExtra)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between gap-4 border-t border-slate-700 pt-1 font-semibold">
+                        <span>Total</span>
+                        <span>{usd0(refiPlan.totalMonthly)}</span>
+                      </div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="p-4">
-                <Stat label="Payment — year 2" value={usd0(totalMonthlyY2)} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <Stat
-                  label="Payment — year 3+"
-                  value={usd0(totalMonthlySteadyState)}
-                />
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-          <>
-            <Card>
-              <CardContent className="p-4">
-                <Stat label="Monthly payment" value={usd0(totalMonthlyY1)} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <Stat label="P&I only" value={usd0(standardPI)} />
-              </CardContent>
-            </Card>
-          </>
-        )}
-        {refiPlan && (
+          )}
+
           <Card>
             <CardContent className="p-4">
               <Stat
-                label={`Refi payment (yr ${refiYear}+)`}
-                value={`${usd0(refiPlan.payment)}/mo`}
-                sub={`${refiTerm}yr @ ${refiRate.toFixed(2)}%`}
-                tone={refiPlan.paymentDelta <= 0 ? "positive" : "negative"}
+                label="Cash to close"
+                value={usd0(plan.cashToClose)}
+                sub={plan.cashToCloseSub}
               />
             </CardContent>
           </Card>
-        )}
-        <Card>
-          <CardContent className="p-4">
-            <Stat
-              label="Cash to close"
-              value={usd0(plan.cashToClose)}
-              sub={plan.cashToCloseSub}
-            />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <Stat
-              label="Total interest (standard)"
-              value={usd0(plan.baseline.totalInterest)}
-              sub={
-                plan.interestSaved > 0
-                  ? `${usd0(plan.interestSaved)} less with extra payments`
-                  : null
-              }
-            />
-          </CardContent>
-        </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <Tooltip>
+                <TooltipTrigger className="w-full text-left cursor-help">
+                  <Stat
+                    label="Total interest (standard)"
+                    value={usd0(plan.baseline.totalInterest)}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Interest paid over the full term if you only ever make the
+                  standard required payment — no extra principal, no refinance.
+                </TooltipContent>
+              </Tooltip>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Tabs
