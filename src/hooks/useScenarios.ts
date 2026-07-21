@@ -1,0 +1,85 @@
+import { useEffect, useMemo, useState } from "react";
+import type { LoanInputs } from "@/lib/defaults";
+import {
+  createScenario,
+  loadStore,
+  saveStore,
+  type Scenario,
+  type ScenarioStore,
+} from "@/lib/scenarios";
+
+export function useScenarios() {
+  const [store, setStore] = useState<ScenarioStore>(loadStore);
+
+  useEffect(() => {
+    saveStore(store);
+  }, [store]);
+
+  const activeScenario = useMemo(
+    () =>
+      store.scenarios.find((s) => s.id === store.activeScenarioId) ??
+      store.scenarios[0],
+    [store],
+  );
+
+  function updateActiveInputs(patch: Partial<LoanInputs>) {
+    setStore((prev) => ({
+      ...prev,
+      scenarios: prev.scenarios.map((s) =>
+        s.id === prev.activeScenarioId
+          ? {
+              ...s,
+              inputs: { ...s.inputs, ...patch },
+              updatedAt: new Date().toISOString(),
+            }
+          : s,
+      ),
+    }));
+  }
+
+  function createScenarioAndActivate() {
+    setStore((prev) => {
+      const scenario = createScenario(`Scenario ${prev.scenarios.length + 1}`);
+      return {
+        scenarios: [...prev.scenarios, scenario],
+        activeScenarioId: scenario.id,
+      };
+    });
+  }
+
+  function renameScenario(id: string, name: string) {
+    setStore((prev) => ({
+      ...prev,
+      scenarios: prev.scenarios.map((s) =>
+        s.id === id ? { ...s, name, updatedAt: new Date().toISOString() } : s,
+      ),
+    }));
+  }
+
+  function deleteScenario(id: string) {
+    setStore((prev) => {
+      if (prev.scenarios.length === 1) {
+        const scenario = createScenario("Scenario 1");
+        return { scenarios: [scenario], activeScenarioId: scenario.id };
+      }
+      const scenarios = prev.scenarios.filter((s) => s.id !== id);
+      const activeScenarioId =
+        prev.activeScenarioId === id ? scenarios[0].id : prev.activeScenarioId;
+      return { scenarios, activeScenarioId };
+    });
+  }
+
+  function selectScenario(id: string) {
+    setStore((prev) => ({ ...prev, activeScenarioId: id }));
+  }
+
+  return {
+    scenarios: store.scenarios,
+    activeScenario: activeScenario as Scenario,
+    updateActiveInputs,
+    createScenario: createScenarioAndActivate,
+    renameScenario,
+    deleteScenario,
+    selectScenario,
+  };
+}

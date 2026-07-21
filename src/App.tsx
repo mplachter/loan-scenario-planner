@@ -1,13 +1,17 @@
-import { useState } from "react";
 import { MortgageCalculator } from "@/components/MortgageCalculator";
-import { DEFAULT_INPUTS, type LoanInputs } from "@/lib/defaults";
+import { ScenarioBar } from "@/components/ScenarioBar";
+import { useScenarios } from "@/hooks/useScenarios";
 
 function App() {
-  const [inputs, setInputs] = useState<LoanInputs>(DEFAULT_INPUTS);
-
-  const handleChange = (patch: Partial<LoanInputs>) => {
-    setInputs((prev) => ({ ...prev, ...patch }));
-  };
+  const {
+    scenarios,
+    activeScenario,
+    updateActiveInputs,
+    createScenario,
+    renameScenario,
+    deleteScenario,
+    selectScenario,
+  } = useScenarios();
 
   return (
     <div
@@ -23,7 +27,18 @@ function App() {
           starting points.
         </p>
       </div>
-      <MortgageCalculator inputs={inputs} onChange={handleChange} />
+      <ScenarioBar
+        scenarios={scenarios}
+        activeScenarioId={activeScenario.id}
+        onSelect={selectScenario}
+        onCreate={createScenario}
+        onRename={renameScenario}
+        onDelete={deleteScenario}
+      />
+      <MortgageCalculator
+        inputs={activeScenario.inputs}
+        onChange={updateActiveInputs}
+      />
     </div>
   );
 }
