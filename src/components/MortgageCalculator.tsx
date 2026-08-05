@@ -313,8 +313,8 @@ export function MortgageCalculator({
 
       <p className="text-xs text-slate-400 text-center mt-2 mb-2">
         Estimates only, not a loan offer. Verify rates, taxes, insurance, and
-        closing costs with your lender, insurer, and the Broward County Property
-        Appraiser before relying on these numbers.
+        closing costs with your lender, insurer, and your county property
+        appraiser before relying on these numbers.
       </p>
     </>
   );

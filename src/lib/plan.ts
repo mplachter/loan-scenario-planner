@@ -81,6 +81,13 @@ export interface MortgagePlan {
   y1Payment: number;
   y2Payment: number;
   buydownSubsidy: number;
+  pointsCost: number;
+  pointsRate: number;
+  pointsPayment: number;
+  pointsMonthlySavings: number;
+  pointsBreakevenMonths: number | null;
+  pointsTotalInterest: number;
+  pointsLifetimeInterestSaved: number;
   extraY1: number;
   extraY2: number;
   extraSteady: number;
@@ -98,6 +105,8 @@ export interface MortgagePlan {
   monthlyInsurance: number;
   monthlyFlood: number;
   monthlyPMI: number;
+  pmiCancelMonth: number | null;
+  totalPMICost: number;
   monthlyUtilities: number;
   baseMonthlyCosts: number;
   basePaymentNoExtra: number;
@@ -152,6 +161,7 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     term,
     rates,
     buydown,
+    points,
     propertyTax,
     hoaMonthly,
     insuranceAnnual,
@@ -220,6 +230,26 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
   const baseline = amortize(loanAmount, rate, term, 0);
   const accelerated = amortize(loanAmount, rate, term, extraFn);
 
+  // Discount points: fixed assumption of 1 point = 1% of loan amount upfront,
+  // buying a 0.25%-point rate reduction, floored at 0.25% (mirrors the
+  // buydown's fixed -2/-1 structure). Computed independently of extraMode.
+  const POINTS_RATE_REDUCTION_PER_POINT = 0.25;
+  const pointsCost = (loanAmount * points) / 100;
+  const pointsRate = Math.max(
+    rate - points * POINTS_RATE_REDUCTION_PER_POINT,
+    0.25,
+  );
+  const pointsAm = amortize(loanAmount, pointsRate, term, 0);
+  const pointsPayment = pointsAm.payment;
+  const pointsMonthlySavings = standardPI - pointsPayment;
+  const pointsBreakevenMonths =
+    pointsMonthlySavings > 0
+      ? Math.ceil(pointsCost / pointsMonthlySavings)
+      : null;
+  const pointsTotalInterest = pointsAm.totalInterest;
+  const pointsLifetimeInterestSaved =
+    baseline.totalInterest - pointsTotalInterest;
+
   const monthsSaved = baseline.months - accelerated.months;
   const yearsSavedWhole = Math.floor(monthsSaved / 12);
   const monthsSavedRem = monthsSaved % 12;
@@ -268,6 +298,15 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     monthlyPMI +
     monthlyUtilities;
   const basePaymentNoExtra = standardPI + baseMonthlyCosts;
+
+  let pmiCancelMonth: number | null = null;
+  if (pmiAnnual > 0) {
+    const cancelIdx = accelerated.balances.findIndex(
+      (b) => b / purchasePrice <= 0.8,
+    );
+    pmiCancelMonth = cancelIdx === -1 ? null : cancelIdx;
+  }
+  const totalPMICost = monthlyPMI * (pmiCancelMonth ?? accelerated.months);
 
   let refiPlan: RefiPlan | null = null;
   if (refiEnabled) {
@@ -504,6 +543,13 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     y1Payment,
     y2Payment,
     buydownSubsidy,
+    pointsCost,
+    pointsRate,
+    pointsPayment,
+    pointsMonthlySavings,
+    pointsBreakevenMonths,
+    pointsTotalInterest,
+    pointsLifetimeInterestSaved,
     extraY1,
     extraY2,
     extraSteady,
@@ -521,6 +567,8 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     monthlyInsurance,
     monthlyFlood,
     monthlyPMI,
+    pmiCancelMonth,
+    totalPMICost,
     monthlyUtilities,
     baseMonthlyCosts,
     basePaymentNoExtra,

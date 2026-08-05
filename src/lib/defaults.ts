@@ -18,6 +18,7 @@ export interface LoanInputs {
   term: LoanTerm;
   rates: Record<LoanTerm, number>;
   buydown: boolean;
+  points: number;
   propertyTax: number;
   hoaMonthly: number;
   insuranceAnnual: number;
@@ -54,6 +55,7 @@ export const DEFAULT_INPUTS: LoanInputs = {
   term: 30,
   rates: { 15: 5.9, 20: 6.3, 25: 6.4, 30: 6.6 },
   buydown: false,
+  points: 0,
   propertyTax: 13300,
   hoaMonthly: 0,
   insuranceAnnual: 6000,

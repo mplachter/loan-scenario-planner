@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SectionTitle } from "@/components/ui/section-title";
+import { Slider } from "@/components/ui/slider";
 import { Stat } from "@/components/ui/stat";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -37,6 +38,7 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
   const {
     term,
     buydown,
+    points,
     extraMode,
     customExtra,
     refiEnabled,
@@ -55,6 +57,12 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
     y1Payment,
     y2Payment,
     buydownSubsidy,
+    pointsCost,
+    pointsRate,
+    pointsPayment,
+    pointsMonthlySavings,
+    pointsBreakevenMonths,
+    pointsLifetimeInterestSaved,
     extraY1,
     extraY2,
     extraMonthly,
@@ -169,6 +177,64 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
                   this costs them roughly the same as a price credit, but it
                   front-loads relief into the two years you're most exposed to
                   income disruption.
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <SectionTitle
+        title="Discount points"
+        note="Pay upfront at closing to buy down your note rate for the life of the loan — each point costs 1% of your loan amount and is assumed to lower your rate by 0.25% (a fixed rule-of-thumb, similar to how the 2-1 buydown uses a fixed -2/-1 structure)."
+      />
+      <Card className="mb-6">
+        <CardContent>
+          <div className="max-w-xs mb-4">
+            <Field label="Points purchased">
+              <NumberInput
+                value={points}
+                onChange={(v) => onChange({ points: v })}
+                step={0.125}
+                min={0}
+              />
+            </Field>
+          </div>
+          {points > 0 && (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
+                <Stat label="Cost at closing" value={usd0(pointsCost)} />
+                <Stat label="New rate" value={`${pointsRate.toFixed(2)}%`} />
+                <Stat label="New P&I" value={`${usd0(pointsPayment)}/mo`} />
+                <Stat
+                  label="Monthly savings"
+                  tone="positive"
+                  value={
+                    pointsMonthlySavings > 0
+                      ? `${usd0(pointsMonthlySavings)}/mo`
+                      : "—"
+                  }
+                />
+              </div>
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                <div className="text-sm text-teal-900">
+                  {pointsBreakevenMonths !== null ? (
+                    <>
+                      Breaks even in{" "}
+                      <span className="font-bold">
+                        {pointsBreakevenMonths} months
+                      </span>{" "}
+                      ({(pointsBreakevenMonths / 12).toFixed(1)} years) — worth
+                      it if you'll keep this loan longer than that.
+                    </>
+                  ) : (
+                    "This doesn't lower your payment enough to break even — points only make sense if the rate reduction saves you money monthly."
+                  )}
+                </div>
+                <div className="text-xs text-teal-700 mt-1">
+                  Over the full {term}-year term with no extra payments, buying
+                  points saves {usd0(Math.max(pointsLifetimeInterestSaved, 0))}{" "}
+                  in interest versus the standard rate.
                 </div>
               </div>
             </>
@@ -520,16 +586,12 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
                   label={`Refinance in year ${refiYear}`}
                   hint="Based on your current plan's balance at that point (including any extra payments)."
                 >
-                  <input
-                    type="range"
-                    min="1"
-                    max={Math.max(Math.ceil(accelerated.months / 12) - 1, 1)}
-                    step="1"
+                  <Slider
                     value={refiYear}
-                    onChange={(e) =>
-                      onChange({ refiYear: parseInt(e.target.value, 10) })
-                    }
-                    className="w-full"
+                    onValueChange={(v) => onChange({ refiYear: v as number })}
+                    min={1}
+                    max={Math.max(Math.ceil(accelerated.months / 12) - 1, 1)}
+                    step={1}
                   />
                 </Field>
                 <Field

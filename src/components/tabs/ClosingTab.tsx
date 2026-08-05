@@ -89,9 +89,16 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
                   </span>
                   <span>{usd0(prepaids)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">
-                    Less: earnest deposit paid
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 flex items-center gap-1">
+                    Less: earnest deposit paid ($
+                    <InlineNumberInput
+                      value={earnestDeposit}
+                      step={500}
+                      onChange={(v) => onChange({ earnestDeposit: v })}
+                      className="w-16 border-b border-slate-300 text-center"
+                    />
+                    )
                   </span>
                   <span className="text-red-600">-{usd0(earnestDeposit)}</span>
                 </div>

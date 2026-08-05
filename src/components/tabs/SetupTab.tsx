@@ -41,6 +41,9 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
     pmiAnnual,
     sellerCreditAmount,
     monthlyUtilities,
+    pmiCancelMonth,
+    totalPMICost,
+    accelerated,
   } = plan;
 
   return (
@@ -123,6 +126,21 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
               Estimated PMI: {usd0(monthlyPMI)}/mo (rough 0.6% annual estimate
               on the loan balance — actual PMI depends on credit score and LTV,
               and drops off entirely at 20% or more down).
+              {pmiCancelMonth !== null ? (
+                <div className="mt-1">
+                  At your current paydown pace, PMI should be cancellable around
+                  year {Math.ceil(pmiCancelMonth / 12)} (month {pmiCancelMonth}
+                  ), once your balance falls to 80% of the original purchase
+                  price — roughly {usd0(totalPMICost)} in PMI paid before then.
+                </div>
+              ) : (
+                <div className="mt-1">
+                  At this pace, your balance doesn't reach 80% of the original
+                  purchase price before the loan is scheduled to end — PMI would
+                  run for the full {Math.round(accelerated.months / 12)} years,
+                  roughly {usd0(totalPMICost)} total.
+                </div>
+              )}
             </div>
           )}
 

@@ -208,6 +208,13 @@ export function CompareTab({ inputs, onChange, plan }: CompareTabProps) {
         </CardContent>
       </Card>
 
+      <div className="text-xs text-slate-400 mb-4">
+        "Equity built" here is down payment + principal paid down only — it
+        doesn't include home-price appreciation. The Strategy tab's "Equity at
+        sale" is a different, larger number because it does factor in your
+        assumed appreciation rate.
+      </div>
+
       <Card className="mb-4 bg-slate-900 !border-slate-900 text-white">
         <CardContent>
           <div className="text-xs uppercase tracking-wide text-teal-300 font-semibold mb-2">
