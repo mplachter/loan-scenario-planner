@@ -32,6 +32,8 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
     electricMonthly,
     internetMonthly,
     tvMonthly,
+    holdYears,
+    homeAppreciationPct,
   } = inputs;
   const {
     loanAmount,
@@ -138,6 +140,40 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
                 />
               </Field>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <SectionTitle
+        title="Ownership horizon"
+        note="How long you plan to stay and how the home might appreciate — drives the equity projection on the Strategy tab."
+      />
+      <Card className="mb-6">
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-4">
+            <Field
+              label={`Ownership length — ${holdYears} year${holdYears === 1 ? "" : "s"}`}
+              hint="When you'd expect to sell or refinance. Also drives the term comparison on the Compare tab."
+            >
+              <Slider
+                value={holdYears}
+                onValueChange={(v) => onChange({ holdYears: v as number })}
+                min={1}
+                max={30}
+                step={1}
+              />
+            </Field>
+            <Field
+              label="Home appreciation — annual"
+              hint="Rough long-run average is 3-4%/yr; adjust for your market."
+            >
+              <NumberInput
+                value={homeAppreciationPct}
+                onChange={(v) => onChange({ homeAppreciationPct: v })}
+                suffix="%"
+                step={0.25}
+              />
+            </Field>
           </div>
         </CardContent>
       </Card>

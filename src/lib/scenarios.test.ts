@@ -32,11 +32,13 @@ describe("loadStore", () => {
       continueExtraAfterRefi,
       refiExtraOverride,
       gasMonthly,
+      homeAppreciationPct,
       ...legacyInputs
     } = DEFAULT_INPUTS;
     void continueExtraAfterRefi;
     void refiExtraOverride;
     void gasMonthly;
+    void homeAppreciationPct;
 
     const legacyStore = {
       scenarios: [
@@ -64,6 +66,9 @@ describe("loadStore", () => {
     expect(scenario.inputs.gasMonthly).toBe(DEFAULT_INPUTS.gasMonthly);
     expect(scenario.inputs.refiExtraOverride).toBe(
       DEFAULT_INPUTS.refiExtraOverride,
+    );
+    expect(scenario.inputs.homeAppreciationPct).toBe(
+      DEFAULT_INPUTS.homeAppreciationPct,
     );
     expect(scenario.inputs.purchasePrice).toBe(850000);
   });

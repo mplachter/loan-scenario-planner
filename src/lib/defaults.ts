@@ -33,6 +33,7 @@ export interface LoanInputs {
   buydownFundedBySeller: boolean;
   maxConcessionPct: number;
   holdYears: number;
+  homeAppreciationPct: number;
   refiEnabled: boolean;
   refiYear: number;
   refiTerm: LoanTerm;
@@ -68,6 +69,7 @@ export const DEFAULT_INPUTS: LoanInputs = {
   buydownFundedBySeller: true,
   maxConcessionPct: 6,
   holdYears: 5,
+  homeAppreciationPct: 3.5,
   refiEnabled: false,
   refiYear: 5,
   refiTerm: 30,

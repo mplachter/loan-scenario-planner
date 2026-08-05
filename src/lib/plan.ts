@@ -66,6 +66,13 @@ export interface ChartRow {
 
 export type CompareChartRow = { year: number } & Record<string, number>;
 
+export interface EquityChartRow {
+  year: number;
+  homeValue: number;
+  balance: number;
+  equity: number;
+}
+
 export interface MortgagePlan {
   rate: number;
   downPayment: number;
@@ -131,6 +138,11 @@ export interface MortgagePlan {
   compareChartData: CompareChartRow[];
   maxYears: number;
   chartData: ChartRow[];
+  equityMaxYears: number;
+  equityChartData: EquityChartRow[];
+  homeValueAtSale: number;
+  loanBalanceAtSale: number;
+  equityAtSale: number;
 }
 
 export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
@@ -154,6 +166,7 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     buydownFundedBySeller,
     maxConcessionPct,
     holdYears,
+    homeAppreciationPct,
     refiEnabled,
     refiYear,
     refiTerm,
@@ -452,6 +465,37 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     chartData.push(row);
   }
 
+  const equityMaxYears = Math.max(maxYears, holdYears);
+  const effectiveBalanceAtYear = (y: number): number => {
+    if (refiPlan && y >= refiYear) {
+      return (
+        refiPlan.balances[
+          Math.min((y - refiYear) * 12, refiPlan.balances.length - 1)
+        ] ?? 0
+      );
+    }
+    const m = y * 12;
+    return (
+      accelerated.balances[Math.min(m, accelerated.balances.length - 1)] ?? 0
+    );
+  };
+  const equityChartData: EquityChartRow[] = [];
+  for (let y = 0; y <= equityMaxYears; y += 1) {
+    const homeValue =
+      purchasePrice * Math.pow(1 + homeAppreciationPct / 100, y);
+    const balance = effectiveBalanceAtYear(y);
+    equityChartData.push({
+      year: y,
+      homeValue,
+      balance,
+      equity: homeValue - balance,
+    });
+  }
+  const homeValueAtSale =
+    purchasePrice * Math.pow(1 + homeAppreciationPct / 100, holdYears);
+  const loanBalanceAtSale = effectiveBalanceAtYear(holdYears);
+  const equityAtSale = homeValueAtSale - loanBalanceAtSale;
+
   return {
     rate,
     downPayment,
@@ -517,5 +561,57 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     compareChartData,
     maxYears,
     chartData,
+    equityMaxYears,
+    equityChartData,
+    homeValueAtSale,
+    loanBalanceAtSale,
+    equityAtSale,
+  };
+}
+
+export interface EquityMaximizerResult {
+  recommendedExtra: number;
+  balanceAtSale: number;
+  equityAtSale: number;
+  fullyPaidOff: boolean;
+}
+
+export function maximizeEquityAtSale(
+  inputs: LoanInputs,
+  maxExtraBudget: number,
+): EquityMaximizerResult {
+  const trial = (extra: number) =>
+    computeMortgagePlan({
+      ...inputs,
+      extraMode: "custom",
+      customExtra: extra,
+      refiExtraOverride: null,
+    });
+
+  const atBudget = trial(maxExtraBudget);
+  if (atBudget.loanBalanceAtSale > 0) {
+    return {
+      recommendedExtra: maxExtraBudget,
+      balanceAtSale: atBudget.loanBalanceAtSale,
+      equityAtSale: atBudget.equityAtSale,
+      fullyPaidOff: false,
+    };
+  }
+
+  let lo = 0;
+  let hi = maxExtraBudget;
+  for (let i = 0; i < 40; i += 1) {
+    const mid = (lo + hi) / 2;
+    if (trial(mid).loanBalanceAtSale <= 0) hi = mid;
+    else lo = mid;
+  }
+
+  const rounded = Math.min(Math.ceil(hi / 25) * 25, maxExtraBudget);
+  const finalPlan = trial(rounded);
+  return {
+    recommendedExtra: rounded,
+    balanceAtSale: finalPlan.loanBalanceAtSale,
+    equityAtSale: finalPlan.equityAtSale,
+    fullyPaidOff: true,
   };
 }

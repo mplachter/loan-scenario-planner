@@ -3,6 +3,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -23,6 +24,8 @@ import {
 } from "@/lib/defaults";
 import { usd0 } from "@/lib/mortgage";
 import type { MortgagePlan } from "@/lib/plan";
+import { EquityMaximizerDialog } from "@/components/tabs/EquityMaximizerDialog";
+import { RefiBreakevenDialog } from "@/components/tabs/RefiBreakevenDialog";
 
 interface StrategyTabProps {
   inputs: LoanInputs;
@@ -43,6 +46,8 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
     refiClosingCostPct,
     continueExtraAfterRefi,
     refiExtraOverride,
+    holdYears,
+    homeAppreciationPct,
   } = inputs;
   const {
     rate,
@@ -62,10 +67,62 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
     matchCompare,
     refiPlan,
     chartData,
+    homeValueAtSale,
+    loanBalanceAtSale,
+    equityAtSale,
+    equityChartData,
   } = plan;
+
+  const refiRemainingMonths = refiPlan
+    ? Math.max((holdYears - refiYear) * 12, 0)
+    : 0;
 
   return (
     <>
+      <SectionTitle
+        title="Strategy fit"
+        note={`How your extra-payment and refinance choices line up with a ${holdYears}-year hold.`}
+      />
+      <Card className="mb-6">
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+            <Stat
+              label={`Equity at sale (yr ${holdYears})`}
+              tone="positive"
+              value={usd0(equityAtSale)}
+            />
+          </div>
+          {refiPlan ? (
+            refiPlan.breakevenMonths === null ? (
+              <div className="mb-4 text-sm text-slate-600">
+                Your current refi doesn't drop the payment, so there's no
+                breakeven to compare against your hold — any case for it rests
+                on the total interest comparison below.
+              </div>
+            ) : refiPlan.breakevenMonths <= refiRemainingMonths ? (
+              <div className="mb-4 text-sm text-teal-700 font-medium">
+                Your configured refi breaks even in {refiPlan.breakevenMonths}{" "}
+                months — before you sell in year {holdYears}.
+              </div>
+            ) : (
+              <div className="mb-4 text-sm text-red-600 font-medium">
+                Your configured refi breaks even in {refiPlan.breakevenMonths}{" "}
+                months — after you sell in year {holdYears}.
+              </div>
+            )
+          ) : (
+            <div className="mb-4 text-sm text-slate-600">
+              No refinance is modeled yet — use the button below to check
+              whether a hypothetical refi would break even before you sell.
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <EquityMaximizerDialog inputs={inputs} onChange={onChange} />
+            <RefiBreakevenDialog inputs={inputs} onChange={onChange} />
+          </div>
+        </CardContent>
+      </Card>
+
       <SectionTitle
         title="2-1 rate buydown"
         note="Temporarily lowers your out-of-pocket payment in years 1-2 by 2% and 1%. The loan still amortizes at the full note rate — a subsidy account (funded by you or the seller) makes up the difference."
@@ -629,6 +686,97 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
               </div>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <SectionTitle
+        title="Home equity over time"
+        note={`Projects home value at ${homeAppreciationPct}%/yr appreciation against your loan balance under this plan${refiPlan ? ", including the modeled refinance" : ""} — extra payments included.`}
+      />
+      <Card className="mb-6">
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+            <Stat
+              label={`Home value in ${holdYears}y`}
+              value={usd0(homeValueAtSale)}
+            />
+            <Stat label="Loan balance then" value={usd0(loanBalanceAtSale)} />
+            <Stat
+              label="Equity at sale"
+              tone="positive"
+              value={usd0(equityAtSale)}
+            />
+          </div>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={equityChartData}
+                margin={{ top: 10, right: 20, left: 10, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis
+                  dataKey="year"
+                  tick={{ fontSize: 12 }}
+                  label={{
+                    value: "Year",
+                    position: "insideBottom",
+                    offset: -2,
+                    fontSize: 12,
+                  }}
+                />
+                <YAxis
+                  tickFormatter={(v) => `$${Math.round(v / 1000)}k`}
+                  tick={{ fontSize: 12 }}
+                  width={55}
+                />
+                <Tooltip
+                  formatter={(v: number) => usd0(v)}
+                  labelFormatter={(l) => `Year ${l}`}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <ReferenceLine
+                  x={holdYears}
+                  stroke="#c026d3"
+                  strokeDasharray="3 3"
+                  label={{
+                    value: "Sale",
+                    position: "top",
+                    fontSize: 12,
+                    fill: "#c026d3",
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="homeValue"
+                  name="Home value"
+                  stroke="#64748b"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="balance"
+                  name="Loan balance"
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  strokeDasharray="4 3"
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="equity"
+                  name="Equity"
+                  stroke="#0f766e"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-xs text-slate-400 mt-3">
+            Equity = projected home value minus your loan balance under this
+            plan. Appreciation is a guess — actual home values can also decline.
+          </p>
         </CardContent>
       </Card>
     </>

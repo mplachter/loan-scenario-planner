@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_INPUTS } from "./defaults";
-import { computeMortgagePlan } from "./plan";
+import { computeMortgagePlan, maximizeEquityAtSale } from "./plan";
 
 describe("computeMortgagePlan", () => {
   it("computes loan amount as purchase price minus down payment", () => {
@@ -177,5 +177,106 @@ describe("computeMortgagePlan", () => {
     expect(withUtilities.totalMonthlySteadyState).toBeCloseTo(
       noUtilities.totalMonthlySteadyState + withUtilities.monthlyUtilities,
     );
+  });
+
+  it("appreciation compounds annually on homeValueAtSale", () => {
+    const plan = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      holdYears: 5,
+      homeAppreciationPct: 4,
+    });
+    expect(plan.homeValueAtSale).toBeCloseTo(
+      DEFAULT_INPUTS.purchasePrice * Math.pow(1.04, 5),
+    );
+  });
+
+  it("equityAtSale respects extra payments", () => {
+    const withExtra = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      extraMode: "custom",
+      customExtra: 500,
+      holdYears: 5,
+      homeAppreciationPct: 3.5,
+    });
+    const withoutExtra = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      extraMode: "none",
+      holdYears: 5,
+      homeAppreciationPct: 3.5,
+    });
+    expect(withExtra.loanBalanceAtSale).toBeLessThan(
+      withoutExtra.loanBalanceAtSale,
+    );
+    expect(withExtra.equityAtSale).toBeGreaterThan(withoutExtra.equityAtSale);
+  });
+
+  it("equityAtSale respects an active refi", () => {
+    const plan = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      refiEnabled: true,
+      refiYear: 3,
+      holdYears: 5,
+    });
+    expect(plan.refiPlan).not.toBeNull();
+    const expected =
+      plan.refiPlan!.balances[
+        Math.min((5 - 3) * 12, plan.refiPlan!.balances.length - 1)
+      ];
+    expect(plan.loanBalanceAtSale).toBe(expected);
+  });
+
+  it("equityChartData year 0 equals the down payment", () => {
+    const plan = computeMortgagePlan(DEFAULT_INPUTS);
+    expect(plan.equityChartData[0].equity).toBeCloseTo(plan.downPayment);
+  });
+
+  it("equityChartData covers at least the hold period", () => {
+    const plan = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      term: 15,
+      extraMode: "custom",
+      customExtra: 2000,
+      holdYears: 20,
+    });
+    const row = plan.equityChartData.find((r) => r.year === 20);
+    expect(row).toBeDefined();
+    expect(row!.balance).toBe(0);
+    expect(row!.equity).toBeCloseTo(row!.homeValue);
+  });
+});
+
+describe("maximizeEquityAtSale", () => {
+  it("recommends less than the full budget when the budget is more than enough", () => {
+    const result = maximizeEquityAtSale(
+      { ...DEFAULT_INPUTS, term: 15, holdYears: 20 },
+      2000,
+    );
+    expect(result.fullyPaidOff).toBe(true);
+    expect(result.balanceAtSale).toBe(0);
+    expect(result.recommendedExtra).toBeLessThan(2000);
+  });
+
+  it("recommends the full budget when it's not enough", () => {
+    const result = maximizeEquityAtSale(
+      { ...DEFAULT_INPUTS, holdYears: 5 },
+      50,
+    );
+    expect(result.recommendedExtra).toBe(50);
+    expect(result.fullyPaidOff).toBe(false);
+    expect(result.balanceAtSale).toBeGreaterThan(0);
+  });
+
+  it("respects an already-enabled refi", () => {
+    const result = maximizeEquityAtSale(
+      {
+        ...DEFAULT_INPUTS,
+        refiEnabled: true,
+        refiYear: 3,
+        holdYears: 10,
+      },
+      10000,
+    );
+    expect(result.fullyPaidOff).toBe(true);
+    expect(result.balanceAtSale).toBe(0);
   });
 });

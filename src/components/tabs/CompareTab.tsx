@@ -109,7 +109,7 @@ export function CompareTab({ inputs, onChange, plan }: CompareTabProps) {
         <CardContent>
           <div className="flex items-center justify-between mb-2">
             <div className="text-sm font-medium text-slate-700">
-              How long do you plan to keep this loan?
+              Ownership length
             </div>
             <div className="text-sm font-bold text-teal-700">
               {holdYears} years
