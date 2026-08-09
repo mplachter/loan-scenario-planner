@@ -514,6 +514,49 @@ describe("closing costs and seller-credit waterfall", () => {
     );
   });
 
+  it("folds pointsCost into closingNeed and cashToClose", () => {
+    const base = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      purchasePrice: 500000,
+      closingCostPct: 2,
+      escrowMonths: 2,
+      sellerCreditPct: 0,
+      points: 0,
+    });
+    const withPoints = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      purchasePrice: 500000,
+      closingCostPct: 2,
+      escrowMonths: 2,
+      sellerCreditPct: 0,
+      points: 2,
+    });
+
+    expect(withPoints.pointsCost).toBeCloseTo(withPoints.loanAmount * 0.02);
+    expect(withPoints.closingNeed).toBeCloseTo(
+      base.closingNeed + withPoints.pointsCost,
+    );
+    expect(withPoints.cashToClose).toBeCloseTo(
+      base.cashToClose + withPoints.pointsCost,
+    );
+  });
+
+  it("lets seller credit absorb points cost before spilling into the buydown", () => {
+    const plan = computeMortgagePlan({
+      ...DEFAULT_INPUTS,
+      purchasePrice: 500000,
+      closingCostPct: 2,
+      escrowMonths: 0,
+      points: 1, // 1% of a 400k loan = 4000
+      sellerCreditPct: 2, // 10000
+      buydown: false,
+    });
+    expect(plan.closingNeed).toBeCloseTo(14000);
+    expect(plan.appliedToClosing).toBeCloseTo(10000);
+    expect(plan.sellerCreditWasted).toBe(0);
+    expect(plan.maxUsableSellerCredit).toBeCloseTo(14000);
+  });
+
   it("remainingAfterClose is reserves minus cashToClose and can go negative", () => {
     const plan = computeMortgagePlan({ ...DEFAULT_INPUTS, reserves: 1000 });
     expect(plan.remainingAfterClose).toBeCloseTo(1000 - plan.cashToClose);
