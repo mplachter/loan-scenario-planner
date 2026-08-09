@@ -298,9 +298,99 @@ describe("TimelineTab", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Load" }));
 
-    expect(onChange).toHaveBeenCalledWith({ events: variant.events });
+    expect(onChange).toHaveBeenCalledWith({
+      events: variant.events,
+      activeVariantId: "v1",
+    });
     expect(
       screen.queryByText(/Replace your current timeline/),
     ).not.toBeInTheDocument();
+  });
+
+  it("loads a variant without confirming when there is no unsaved work", async () => {
+    const variant: TimelineVariant = {
+      id: "v1",
+      name: "Refi @3+5",
+      events: [createLumpSumEvent(CURRENT_MONTH + 1, { amount: 1000 })],
+    };
+    const { onChange } = renderTimelineTab([], { variants: [variant] });
+
+    await userEvent.click(screen.getByRole("button", { name: "Load" }));
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenCalledWith({
+      events: variant.events,
+      activeVariantId: "v1",
+    });
+  });
+
+  it("marks the active variant as loaded and offers no Load or Overwrite while it is unedited", () => {
+    const events = [createLumpSumEvent(CURRENT_MONTH + 1, { amount: 1000 })];
+    renderTimelineTab(structuredClone(events), {
+      variants: [{ id: "v1", name: "Refi @3+5", events }],
+      activeVariantId: "v1",
+    });
+
+    expect(screen.getByText("Loaded")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Overwrite" })).toBeDisabled();
+  });
+
+  it("offers Revert and a confirmed Overwrite once the active variant is edited", async () => {
+    const variant: TimelineVariant = {
+      id: "v1",
+      name: "Refi @3+5",
+      events: [createLumpSumEvent(CURRENT_MONTH + 1, { amount: 1000 })],
+    };
+    const edited = [createLumpSumEvent(CURRENT_MONTH + 1, { amount: 4000 })];
+    const { onChange } = renderTimelineTab(edited, {
+      variants: [variant],
+      activeVariantId: "v1",
+    });
+
+    expect(screen.getByText("Loaded · edited")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revert" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Overwrite" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(
+      within(dialog).getByText(/Overwrite "Refi @3\+5" with your current/),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Overwrite" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith({
+      variants: [{ ...variant, events: edited }],
+      activeVariantId: "v1",
+    });
+  });
+
+  it("clears the active variant when it is deleted", async () => {
+    const variant: TimelineVariant = {
+      id: "v1",
+      name: "Refi @3+5",
+      events: [],
+    };
+    const { onChange } = renderTimelineTab([], {
+      variants: [variant],
+      activeVariantId: "v1",
+    });
+
+    const card = screen
+      .getByText("Refi @3+5")
+      .closest<HTMLElement>(".rounded-xl")!;
+    const trashButton = within(card).getAllByRole("button").at(-1)!;
+    await userEvent.click(trashButton);
+    const dialog = screen.getByRole("alertdialog");
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: "Delete" }),
+    );
+
+    expect(onChange).toHaveBeenCalledWith({
+      variants: [],
+      activeVariantId: null,
+    });
   });
 });

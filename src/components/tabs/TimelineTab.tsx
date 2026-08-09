@@ -67,6 +67,7 @@ import {
   createRefinanceEvent,
   EVENT_COLORS,
   EVENT_LABELS,
+  eventsEqual,
   type LumpSumEvent,
   type MortgageEvent,
   type RecurringExtraEvent,
@@ -298,24 +299,37 @@ export function TimelineTab({
       name,
       events: structuredClone(inputs.events),
     };
-    onChange({ variants: [...inputs.variants, variant] });
+    onChange({
+      variants: [...inputs.variants, variant],
+      activeVariantId: variant.id,
+    });
   }
 
   function loadVariant(variant: TimelineVariant) {
-    onChange({ events: structuredClone(variant.events) });
+    onChange({
+      events: structuredClone(variant.events),
+      activeVariantId: variant.id,
+    });
     setEditingId(null);
   }
 
+  // Overwrites the variant's saved events with the current timeline, and makes
+  // it the active one — writing to a variant is as much a "you're now working
+  // on this one" signal as loading it is.
   function updateVariant(id: string) {
     onChange({
       variants: inputs.variants.map((v) =>
         v.id === id ? { ...v, events: structuredClone(inputs.events) } : v,
       ),
+      activeVariantId: id,
     });
   }
 
   function deleteVariant(id: string) {
-    onChange({ variants: inputs.variants.filter((v) => v.id !== id) });
+    onChange({
+      variants: inputs.variants.filter((v) => v.id !== id),
+      ...(inputs.activeVariantId === id ? { activeVariantId: null } : {}),
+    });
   }
 
   const attributions = useMemo(
@@ -372,11 +386,12 @@ export function TimelineTab({
         note="Every event you add here compounds with every other one — nothing here overrides anything else."
       />
 
-      <div className="mb-4">
+      <div className="mb-6 space-y-3">
         <SaveVariantDialog onSave={saveVariant} />
         <VariantList
           variants={inputs.variants}
-          hasCurrentEvents={inputs.events.length > 0}
+          currentEvents={inputs.events}
+          activeVariantId={inputs.activeVariantId}
           onLoad={loadVariant}
           onUpdate={updateVariant}
           onDelete={deleteVariant}
@@ -732,71 +747,154 @@ function SaveVariantDialog({ onSave }: { onSave: (name: string) => void }) {
   );
 }
 
+// A small button whose action is destructive enough to confirm first. With
+// `skipConfirm` the button fires directly — used where there is nothing to lose
+// (loading a variant when the current timeline has no unsaved edits).
+function ConfirmButton({
+  label,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  variant = "outline",
+  disabled = false,
+  skipConfirm = false,
+  hint,
+}: {
+  label: string;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  variant?: "outline" | "ghost";
+  disabled?: boolean;
+  skipConfirm?: boolean;
+  hint?: string;
+}) {
+  if (skipConfirm || disabled) {
+    return (
+      <Button
+        variant={variant}
+        size="sm"
+        disabled={disabled}
+        title={hint}
+        onClick={onConfirm}
+      >
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger render={<Button variant={variant} size="sm" />}>
+        {label}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function VariantList({
   variants,
-  hasCurrentEvents,
+  currentEvents,
+  activeVariantId,
   onLoad,
   onUpdate,
   onDelete,
 }: {
   variants: TimelineVariant[];
-  hasCurrentEvents: boolean;
+  currentEvents: MortgageEvent[];
+  activeVariantId: string | null;
   onLoad: (v: TimelineVariant) => void;
   onUpdate: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
   if (variants.length === 0) return null;
+  const active = variants.find((v) => v.id === activeVariantId) ?? null;
+  // Edits made since the active variant was loaded. With no active variant, any
+  // events at all are unsaved work — that's what a Load would discard.
+  const hasUnsavedWork = active
+    ? !eventsEqual(currentEvents, active.events)
+    : currentEvents.length > 0;
+
   return (
-    <div className="space-y-2 mb-4">
+    <div className="space-y-2">
       {variants.map((v) => {
         const kinds = [...new Set(v.events.map((e) => e.kind))];
+        const isActive = v.id === activeVariantId;
+        const isDirty = isActive && hasUnsavedWork;
         return (
-          <Card key={v.id} size="sm">
+          <Card
+            key={v.id}
+            size="sm"
+            className={
+              isActive ? "ring-2 ring-teal-500 bg-teal-50/40" : undefined
+            }
+          >
             <CardHeader>
-              <CardTitle>{v.name}</CardTitle>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                {v.name}
+                {isActive && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                      isDirty
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-teal-100 text-teal-800"
+                    }`}
+                  >
+                    {isDirty ? "Loaded · edited" : "Loaded"}
+                  </span>
+                )}
+              </CardTitle>
               <CardDescription>
                 {v.events.length} event{v.events.length === 1 ? "" : "s"}
                 {kinds.length > 0 &&
                   ` · ${kinds.map((k) => EVENT_LABELS[k]).join(", ")}`}
               </CardDescription>
-              <CardAction className="flex items-center gap-1">
-                {hasCurrentEvents ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger
-                      render={<Button variant="outline" size="sm" />}
-                    >
-                      Load
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          Replace your current timeline with "{v.name}"?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Any edits you've made since your last save will be
-                          lost unless they're saved as a variant.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onLoad(v)}>
-                          Load
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+              <CardAction className="flex items-center gap-2">
+                {isActive ? (
+                  isDirty && (
+                    <ConfirmButton
+                      label="Revert"
+                      title={`Discard your edits and reload "${v.name}"?`}
+                      description="Your current timeline goes back to what this variant has saved. Edits since you loaded it are lost."
+                      confirmLabel="Revert"
+                      onConfirm={() => onLoad(v)}
+                    />
+                  )
                 ) : (
-                  <Button variant="outline" size="sm" onClick={() => onLoad(v)}>
-                    Load
-                  </Button>
+                  <ConfirmButton
+                    label="Load"
+                    title={`Replace your current timeline with "${v.name}"?`}
+                    description="Any edits you've made since your last save will be lost unless they're saved as a variant."
+                    confirmLabel="Load"
+                    skipConfirm={!hasUnsavedWork}
+                    onConfirm={() => onLoad(v)}
+                  />
                 )}
-                <Button
+                <ConfirmButton
+                  label="Overwrite"
                   variant="ghost"
-                  size="sm"
-                  onClick={() => onUpdate(v.id)}
-                >
-                  Update
-                </Button>
+                  hint={isActive && !isDirty ? "No changes to save" : undefined}
+                  title={`Overwrite "${v.name}" with your current timeline?`}
+                  description={`"${v.name}" currently has ${v.events.length} event${
+                    v.events.length === 1 ? "" : "s"
+                  }. They're replaced by your current ${currentEvents.length}-event timeline, and this can't be undone.`}
+                  confirmLabel="Overwrite"
+                  disabled={isActive && !isDirty}
+                  onConfirm={() => onUpdate(v.id)}
+                />
                 <AlertDialog>
                   <AlertDialogTrigger
                     render={<Button variant="ghost" size="icon-xs" />}

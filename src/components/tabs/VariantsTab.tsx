@@ -152,6 +152,8 @@ export function VariantsTab({ inputs, ctx, currentMonth }: VariantsTabProps) {
     { name: "Current (unsaved)", events: inputs.events },
   ]);
   const rows = comparisons.map((c) => rowFor(c, currentMonth));
+  const activeVariantName =
+    inputs.variants.find((v) => v.id === inputs.activeVariantId)?.name ?? null;
 
   const chartedComparisons = comparisons.slice(0, 5);
   const otherColors = Object.values(TERM_COLORS);
@@ -215,6 +217,11 @@ export function VariantsTab({ inputs, ctx, currentMonth }: VariantsTabProps) {
                     <div className="text-sm font-bold text-slate-800">
                       {c.name}
                     </div>
+                    {c.name === activeVariantName && (
+                      <div className="text-[11px] font-medium text-teal-700">
+                        loaded
+                      </div>
+                    )}
                   </th>
                 ))}
               </tr>
