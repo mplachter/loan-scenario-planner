@@ -4,25 +4,25 @@ import userEvent from "@testing-library/user-event";
 
 import { BudgetTab } from "@/components/tabs/BudgetTab";
 import {
-  DEFAULT_INPUTS,
+  DEFAULT_HOUSEHOLD,
   type BudgetItem,
-  type LoanInputs,
-} from "@/lib/defaults";
+  type Household,
+} from "@/lib/household";
 
 function renderBudgetTab(
-  overrides: Partial<LoanInputs> = {},
+  overrides: Partial<Household> = {},
   housingPayment = 2000,
 ) {
-  const inputs = { ...DEFAULT_INPUTS, ...overrides };
-  const onChange = vi.fn();
+  const household = { ...DEFAULT_HOUSEHOLD, ...overrides };
+  const onHouseholdChange = vi.fn();
   render(
     <BudgetTab
-      inputs={inputs}
-      onChange={onChange}
+      household={household}
+      onHouseholdChange={onHouseholdChange}
       housingPayment={housingPayment}
     />,
   );
-  return { inputs, onChange };
+  return { household, onHouseholdChange };
 }
 
 function fieldInput(labelText: string) {
@@ -33,29 +33,31 @@ function fieldInput(labelText: string) {
 
 describe("BudgetTab", () => {
   it("patches netPayPerPaycheck when the take-home-pay field is edited", async () => {
-    const { onChange } = renderBudgetTab();
+    const { onHouseholdChange } = renderBudgetTab();
     const input = fieldInput("Take-home pay per paycheck");
 
     await userEvent.clear(input);
     await userEvent.type(input, "2500");
 
-    expect(onChange).toHaveBeenLastCalledWith({ netPayPerPaycheck: 2500 });
+    expect(onHouseholdChange).toHaveBeenLastCalledWith({
+      netPayPerPaycheck: 2500,
+    });
   });
 
   it("patches payFrequency when a pay-frequency toggle item is clicked", async () => {
-    const { onChange } = renderBudgetTab({ payFrequency: "biweekly" });
+    const { onHouseholdChange } = renderBudgetTab({ payFrequency: "biweekly" });
 
     await userEvent.click(screen.getByRole("button", { name: "Weekly" }));
 
-    expect(onChange).toHaveBeenCalledWith({ payFrequency: "weekly" });
+    expect(onHouseholdChange).toHaveBeenCalledWith({ payFrequency: "weekly" });
   });
 
   it("patches bonusMonth when the bonus-month select is changed", async () => {
-    const { onChange } = renderBudgetTab({ bonusMonth: 3 });
+    const { onHouseholdChange } = renderBudgetTab({ bonusMonth: 3 });
 
     await userEvent.selectOptions(screen.getByRole("combobox"), "6");
 
-    expect(onChange).toHaveBeenLastCalledWith({ bonusMonth: 6 });
+    expect(onHouseholdChange).toHaveBeenLastCalledWith({ bonusMonth: 6 });
   });
 
   it("cycles a budget item's category through the badge button, replacing the whole budgetItems array", async () => {
@@ -66,11 +68,11 @@ describe("BudgetTab", () => {
       category: "needs",
       isCustom: false,
     };
-    const { onChange } = renderBudgetTab({ budgetItems: [item] });
+    const { onHouseholdChange } = renderBudgetTab({ budgetItems: [item] });
 
     await userEvent.click(screen.getByRole("button", { name: "needs" }));
 
-    expect(onChange).toHaveBeenCalledWith({
+    expect(onHouseholdChange).toHaveBeenCalledWith({
       budgetItems: [{ ...item, category: "wants" }],
     });
   });
@@ -83,24 +85,26 @@ describe("BudgetTab", () => {
       category: "wants",
       isCustom: true,
     };
-    const { onChange } = renderBudgetTab({ budgetItems: [item] });
+    const { onHouseholdChange } = renderBudgetTab({ budgetItems: [item] });
 
     const row = screen.getByDisplayValue("Gym").closest("div")!;
     await userEvent.click(within(row).getByRole("button", { name: "" }));
 
-    expect(onChange).toHaveBeenCalledWith({ budgetItems: [] });
+    expect(onHouseholdChange).toHaveBeenCalledWith({ budgetItems: [] });
   });
 
   it("adds a new blank custom row when 'Add custom row' is clicked", async () => {
-    const { onChange, inputs } = renderBudgetTab({ budgetItems: [] });
+    const { onHouseholdChange, household } = renderBudgetTab({
+      budgetItems: [],
+    });
 
     await userEvent.click(
       screen.getByRole("button", { name: /Add custom row/ }),
     );
 
-    expect(onChange).toHaveBeenCalledTimes(1);
-    const patch = onChange.mock.calls[0]![0];
-    expect(patch.budgetItems).toHaveLength(inputs.budgetItems.length + 1);
+    expect(onHouseholdChange).toHaveBeenCalledTimes(1);
+    const patch = onHouseholdChange.mock.calls[0]![0];
+    expect(patch.budgetItems).toHaveLength(household.budgetItems.length + 1);
     expect(patch.budgetItems[0]).toMatchObject({
       label: "",
       amount: 0,

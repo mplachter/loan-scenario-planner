@@ -23,7 +23,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogClose,
@@ -80,12 +87,12 @@ interface TimelineTabProps {
 function summarizeEvent(
   ev: MortgageEvent,
   firstPaymentDate: string,
-  refinances: ServicingResult["refinances"],
+  result: ServicingResult,
 ): string {
   const dateLabel = formatMonthYear(monthToDateISO(firstPaymentDate, ev.month));
   switch (ev.kind) {
     case "refinance": {
-      const summary = refinances.find((r) => r.eventId === ev.id);
+      const summary = result.refinances.find((r) => r.eventId === ev.id);
       const costsLabel = summary
         ? `${usd0(summary.costs)} costs ${ev.rollCostsIn ? "rolled in" : "out of pocket"}`
         : `${ev.closingCostPct}% + ${usd0(ev.closingCostFlat)} costs`;
@@ -110,6 +117,46 @@ function summarizeEvent(
       return `Escrow change — ${dateLabel}${parts.length ? ` · ${parts.join(" · ")}` : ""}`;
     }
   }
+}
+
+function paymentImpact(
+  ev: MortgageEvent,
+  result: ServicingResult,
+): { label: string; before: number; after: number } | null {
+  if (ev.kind === "refinance") {
+    const summary = result.refinances.find((r) => r.eventId === ev.id);
+    if (!summary) return null;
+    return {
+      label: "Payment",
+      before: summary.oldPayment,
+      after: summary.newPayment,
+    };
+  }
+  const afterRow = result.rows[ev.month - 1];
+  if (!afterRow) return null;
+  const beforeRow = result.rows[ev.month - 2];
+  if (ev.kind === "recast") {
+    return {
+      label: "Payment",
+      before: beforeRow?.scheduledPI ?? afterRow.scheduledPI,
+      after: afterRow.scheduledPI,
+    };
+  }
+  if (ev.kind === "escrow") {
+    return {
+      label: "Escrow",
+      before: beforeRow?.escrow ?? afterRow.escrow,
+      after: afterRow.escrow,
+    };
+  }
+  if (ev.kind === "extra" || ev.kind === "lump") {
+    return {
+      label: "Total monthly outflow",
+      before: beforeRow?.totalOutflow ?? afterRow.totalOutflow,
+      after: afterRow.totalOutflow,
+    };
+  }
+  return null;
 }
 
 const ADD_EVENT_DEFS: {
@@ -278,18 +325,15 @@ export function TimelineTab({
         note="Every event you add here compounds with every other one — nothing here overrides anything else."
       />
 
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="mb-4">
         <SaveVariantDialog onSave={saveVariant} />
-        {inputs.variants.map((v) => (
-          <VariantActions
-            key={v.id}
-            variant={v}
-            hasCurrentEvents={inputs.events.length > 0}
-            onLoad={() => loadVariant(v)}
-            onUpdate={() => updateVariant(v.id)}
-            onDelete={() => deleteVariant(v.id)}
-          />
-        ))}
+        <VariantList
+          variants={inputs.variants}
+          hasCurrentEvents={inputs.events.length > 0}
+          onLoad={loadVariant}
+          onUpdate={updateVariant}
+          onDelete={deleteVariant}
+        />
       </div>
 
       <Card className="mb-4">
@@ -326,7 +370,7 @@ export function TimelineTab({
                   key={ev.id}
                   ev={ev}
                   firstPaymentDate={firstPaymentDate}
-                  refinances={result.refinances}
+                  result={result}
                   editing={editingId === ev.id}
                   onToggleEdit={() =>
                     setEditingId(editingId === ev.id ? null : ev.id)
@@ -355,7 +399,7 @@ export function TimelineTab({
                     key={ev.id}
                     ev={ev}
                     firstPaymentDate={firstPaymentDate}
-                    refinances={result.refinances}
+                    result={result}
                     editing={editingId === ev.id}
                     onToggleEdit={() =>
                       setEditingId(editingId === ev.id ? null : ev.id)
@@ -463,7 +507,7 @@ export function TimelineTab({
                     className="flex flex-wrap items-baseline justify-between gap-2 text-sm border-b border-slate-100 pb-2 last:border-0"
                   >
                     <span className="text-slate-600">
-                      {summarizeEvent(ev, firstPaymentDate, result.refinances)}
+                      {summarizeEvent(ev, firstPaymentDate, result)}
                     </span>
                     <span className="text-xs text-slate-500 whitespace-nowrap">
                       Drop this and you'd pay{" "}
@@ -641,91 +685,105 @@ function SaveVariantDialog({ onSave }: { onSave: (name: string) => void }) {
   );
 }
 
-function VariantActions({
-  variant,
+function VariantList({
+  variants,
   hasCurrentEvents,
   onLoad,
   onUpdate,
   onDelete,
 }: {
-  variant: TimelineVariant;
+  variants: TimelineVariant[];
   hasCurrentEvents: boolean;
-  onLoad: () => void;
-  onUpdate: () => void;
-  onDelete: () => void;
+  onLoad: (v: TimelineVariant) => void;
+  onUpdate: (id: string) => void;
+  onDelete: (id: string) => void;
 }) {
+  if (variants.length === 0) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-slate-300 hover:border-slate-400 pl-2 pr-1 py-1">
-      <span className="text-xs text-slate-600">{variant.name}</span>
-      {hasCurrentEvents ? (
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <button
-                type="button"
-                className="text-xs px-1.5 py-0.5 rounded text-teal-700 hover:bg-teal-50"
-              />
-            }
-          >
-            Load
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Replace your current timeline with "{variant.name}"?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                Any edits you've made since your last save will be lost unless
-                they're saved as a variant.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onLoad}>Load</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      ) : (
-        <button
-          type="button"
-          onClick={onLoad}
-          className="text-xs px-1.5 py-0.5 rounded text-teal-700 hover:bg-teal-50"
-        >
-          Load
-        </button>
-      )}
-      <button
-        type="button"
-        onClick={onUpdate}
-        className="text-xs px-1.5 py-0.5 rounded text-slate-600 hover:bg-slate-100"
-      >
-        Update
-      </button>
-      <AlertDialog>
-        <AlertDialogTrigger render={<Button variant="ghost" size="icon-xs" />}>
-          <Trash2 />
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{variant.name}"?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This can't be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </span>
+    <div className="space-y-2 mb-4">
+      {variants.map((v) => {
+        const kinds = [...new Set(v.events.map((e) => e.kind))];
+        return (
+          <Card key={v.id} size="sm">
+            <CardHeader>
+              <CardTitle>{v.name}</CardTitle>
+              <CardDescription>
+                {v.events.length} event{v.events.length === 1 ? "" : "s"}
+                {kinds.length > 0 &&
+                  ` · ${kinds.map((k) => EVENT_LABELS[k]).join(", ")}`}
+              </CardDescription>
+              <CardAction className="flex items-center gap-1">
+                {hasCurrentEvents ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={<Button variant="outline" size="sm" />}
+                    >
+                      Load
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Replace your current timeline with "{v.name}"?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Any edits you've made since your last save will be
+                          lost unless they're saved as a variant.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onLoad(v)}>
+                          Load
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => onLoad(v)}>
+                    Load
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onUpdate(v.id)}
+                >
+                  Update
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger
+                    render={<Button variant="ghost" size="icon-xs" />}
+                  >
+                    <Trash2 />
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete "{v.name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This can't be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onDelete(v.id)}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardAction>
+            </CardHeader>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 
 interface EventRowProps {
   ev: MortgageEvent;
   firstPaymentDate: string;
-  refinances: ServicingResult["refinances"];
+  result: ServicingResult;
   editing: boolean;
   onToggleEdit: () => void;
   onToggleEnabled: () => void;
@@ -737,7 +795,7 @@ interface EventRowProps {
 function EventRow({
   ev,
   firstPaymentDate,
-  refinances,
+  result,
   editing,
   onToggleEdit,
   onToggleEnabled,
@@ -745,6 +803,7 @@ function EventRow({
   onUpdate,
   currentScheduledPI,
 }: EventRowProps) {
+  const impact = paymentImpact(ev, result);
   return (
     <div className="rounded-lg border border-slate-200">
       <div className="flex items-center gap-2 p-2">
@@ -758,7 +817,7 @@ function EventRow({
           {EVENT_LABELS[ev.kind]}
         </span>
         <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">
-          {summarizeEvent(ev, firstPaymentDate, refinances)}
+          {summarizeEvent(ev, firstPaymentDate, result)}
         </span>
         <Switch checked={ev.enabled} onCheckedChange={onToggleEnabled} />
         <Button variant="ghost" size="icon-xs" onClick={onToggleEdit}>
@@ -784,6 +843,11 @@ function EventRow({
           </AlertDialogContent>
         </AlertDialog>
       </div>
+      {impact && Math.abs(impact.after - impact.before) >= 0.5 && (
+        <div className="px-2 pb-2 -mt-1 text-xs text-slate-500">
+          {impact.label}: {usd0(impact.before)} → {usd0(impact.after)}/mo
+        </div>
+      )}
       {editing && (
         <div className="border-t border-slate-100 p-3">
           <EventEditor
@@ -811,9 +875,12 @@ function MonthField({
     <Field label="Date" hint={`Year ${Math.max(Math.ceil(month / 12), 1)}`}>
       <input
         type="date"
+        min={firstPaymentDate}
         value={monthToDateISO(firstPaymentDate, month)}
         onChange={(e) =>
-          onChange(dateToMonthISO(firstPaymentDate, e.target.value))
+          onChange(
+            Math.max(dateToMonthISO(firstPaymentDate, e.target.value), 1),
+          )
         }
         className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
       />
@@ -950,10 +1017,14 @@ function EventEditor({
           {ev.endMonth !== null && (
             <input
               type="date"
+              min={monthToDateISO(firstPaymentDate, ev.month)}
               value={monthToDateISO(firstPaymentDate, ev.endMonth)}
               onChange={(e) =>
                 onUpdate({
-                  endMonth: dateToMonthISO(firstPaymentDate, e.target.value),
+                  endMonth: Math.max(
+                    dateToMonthISO(firstPaymentDate, e.target.value),
+                    ev.month,
+                  ),
                 })
               }
               className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"

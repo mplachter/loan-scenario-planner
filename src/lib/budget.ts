@@ -1,9 +1,9 @@
 import type {
   BudgetCategory,
   BudgetItem,
-  LoanInputs,
+  Household,
   PayFrequency,
-} from "./defaults";
+} from "./household";
 
 export const PAY_PERIODS_PER_YEAR: Record<PayFrequency, number> = {
   weekly: 52,
@@ -12,8 +12,8 @@ export const PAY_PERIODS_PER_YEAR: Record<PayFrequency, number> = {
   monthly: 12,
 };
 
-export function monthlyTakeHomeIncome(inputs: LoanInputs): number {
-  const { payFrequency, netPayPerPaycheck, annualBonusNet } = inputs;
+export function monthlyTakeHomeIncome(household: Household): number {
+  const { payFrequency, netPayPerPaycheck, annualBonusNet } = household;
   return (
     (netPayPerPaycheck * PAY_PERIODS_PER_YEAR[payFrequency] + annualBonusNet) /
     12
@@ -46,11 +46,11 @@ export interface LeftoverBreakdown {
 }
 
 export function monthlyLeftover(
-  inputs: LoanInputs,
+  household: Household,
   housingPayment: number,
 ): LeftoverBreakdown {
-  const income = monthlyTakeHomeIncome(inputs);
-  const total = budgetTotal(inputs.budgetItems);
+  const income = monthlyTakeHomeIncome(household);
+  const total = budgetTotal(household.budgetItems);
   return {
     income,
     budgetTotal: total,

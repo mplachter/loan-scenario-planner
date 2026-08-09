@@ -17,14 +17,14 @@ import {
 import type {
   BudgetCategory,
   BudgetItem,
-  LoanInputs,
+  Household,
   PayFrequency,
-} from "@/lib/defaults";
+} from "@/lib/household";
 import { usd0 } from "@/lib/mortgage";
 
 interface BudgetTabProps {
-  inputs: LoanInputs;
-  onChange: (patch: Partial<LoanInputs>) => void;
+  household: Household;
+  onHouseholdChange: (patch: Partial<Household>) => void;
   housingPayment: number;
 }
 
@@ -73,8 +73,8 @@ const MONTH_NAMES = [
 // gating for closed Buying-mode tabs must never wrap this component, and it
 // renders identically (and always editable) in both Buying and Owning mode.
 export function BudgetTab({
-  inputs,
-  onChange,
+  household,
+  onHouseholdChange,
   housingPayment,
 }: BudgetTabProps) {
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
@@ -84,12 +84,12 @@ export function BudgetTab({
     annualBonusNet,
     bonusMonth,
     budgetItems,
-  } = inputs;
+  } = household;
 
-  const income = monthlyTakeHomeIncome(inputs);
+  const income = monthlyTakeHomeIncome(household);
   const total = budgetTotal(budgetItems);
   const byCategory = budgetByCategory(budgetItems);
-  const { leftover } = monthlyLeftover(inputs, housingPayment);
+  const { leftover } = monthlyLeftover(household, housingPayment);
 
   const needsPct =
     income > 0 ? ((byCategory.needs + housingPayment) / income) * 100 : 0;
@@ -98,7 +98,7 @@ export function BudgetTab({
   const clampPct = (p: number) => Math.max(0, Math.min(100, p));
 
   function updateItem(id: string, patch: Partial<BudgetItem>) {
-    onChange({
+    onHouseholdChange({
       budgetItems: budgetItems.map((item) =>
         item.id === id ? { ...item, ...patch } : item,
       ),
@@ -106,7 +106,9 @@ export function BudgetTab({
   }
 
   function deleteItem(id: string) {
-    onChange({ budgetItems: budgetItems.filter((item) => item.id !== id) });
+    onHouseholdChange({
+      budgetItems: budgetItems.filter((item) => item.id !== id),
+    });
   }
 
   function addCustomRow() {
@@ -117,7 +119,7 @@ export function BudgetTab({
       category: "wants",
       isCustom: true,
     };
-    onChange({ budgetItems: [...budgetItems, item] });
+    onHouseholdChange({ budgetItems: [...budgetItems, item] });
     setJustAddedId(item.id);
   }
 
@@ -137,7 +139,7 @@ export function BudgetTab({
             <Field label="Take-home pay per paycheck">
               <NumberInput
                 value={netPayPerPaycheck}
-                onChange={(v) => onChange({ netPayPerPaycheck: v })}
+                onChange={(v) => onHouseholdChange({ netPayPerPaycheck: v })}
                 prefix="$"
                 step={50}
               />
@@ -148,7 +150,8 @@ export function BudgetTab({
                 value={[payFrequency]}
                 onValueChange={(vals) => {
                   const next = vals[0];
-                  if (next) onChange({ payFrequency: next as PayFrequency });
+                  if (next)
+                    onHouseholdChange({ payFrequency: next as PayFrequency });
                 }}
                 className="flex-wrap"
               >
@@ -164,7 +167,7 @@ export function BudgetTab({
             <Field label="Annual bonus (take-home estimate, optional)">
               <NumberInput
                 value={annualBonusNet}
-                onChange={(v) => onChange({ annualBonusNet: v })}
+                onChange={(v) => onHouseholdChange({ annualBonusNet: v })}
                 prefix="$"
                 step={500}
               />
@@ -173,7 +176,7 @@ export function BudgetTab({
               <select
                 value={bonusMonth}
                 onChange={(e) =>
-                  onChange({ bonusMonth: Number(e.target.value) })
+                  onHouseholdChange({ bonusMonth: Number(e.target.value) })
                 }
                 className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
               >

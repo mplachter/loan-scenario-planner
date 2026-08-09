@@ -1,17 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { BuyingCalculator } from "@/components/BuyingCalculator";
 import { DEFAULT_INPUTS, type LoanInputs } from "@/lib/defaults";
+import { DEFAULT_HOUSEHOLD, type Household } from "@/lib/household";
+import { computeMortgagePlan } from "@/lib/plan";
 
-function renderBuyingCalculator(overrides: Partial<LoanInputs> = {}) {
+function renderBuyingCalculator(
+  overrides: Partial<LoanInputs> = {},
+  householdOverrides: Partial<Household> = {},
+) {
   const inputs: LoanInputs = { ...DEFAULT_INPUTS, ...overrides };
+  const household: Household = { ...DEFAULT_HOUSEHOLD, ...householdOverrides };
   const onChange = vi.fn();
+  const onHousingPaymentChange = vi.fn();
   const utils = render(
-    <BuyingCalculator inputs={inputs} onChange={onChange} />,
+    <BuyingCalculator
+      inputs={inputs}
+      onChange={onChange}
+      household={household}
+      onHousingPaymentChange={onHousingPaymentChange}
+    />,
   );
-  return { inputs, onChange, ...utils };
+  return { inputs, onChange, household, onHousingPaymentChange, ...utils };
 }
 
 describe("BuyingCalculator", () => {
@@ -49,29 +61,16 @@ describe("BuyingCalculator", () => {
     ).not.toBeInTheDocument();
     expect(container.querySelectorAll("[inert]")).toHaveLength(0);
 
-    for (const tabName of ["Strategy", "Compare terms", "Closing", "Budget"]) {
+    for (const tabName of ["Strategy", "Compare terms", "Closing"]) {
       await userEvent.click(screen.getByRole("tab", { name: tabName }));
       expect(container.querySelectorAll("[inert]")).toHaveLength(0);
     }
   });
 
-  it("keeps the Budget tab interactive and un-inert even when mode is owning", async () => {
-    const { container, onChange } = renderBuyingCalculator({
-      mode: "owning",
-    });
-
-    await userEvent.click(screen.getByRole("tab", { name: "Budget" }));
-
-    // only the hero wrapper remains inert; Budget has no wrapper of its own
-    expect(container.querySelectorAll("[inert]")).toHaveLength(1);
-
-    const input = within(
-      screen.getByText("Take-home pay per paycheck").parentElement!,
-    ).getByRole("spinbutton");
-    await userEvent.clear(input);
-    await userEvent.type(input, "2500");
-
-    expect(onChange).toHaveBeenCalledWith({ netPayPerPaycheck: 2500 });
+  it("reports the steady-state payment via onHousingPaymentChange", () => {
+    const { onHousingPaymentChange, inputs } = renderBuyingCalculator();
+    const expected = computeMortgagePlan(inputs).totalMonthlySteadyState;
+    expect(onHousingPaymentChange).toHaveBeenCalledWith(expected);
   });
 
   it("hides the refi payment stat card when no refi is modeled", () => {

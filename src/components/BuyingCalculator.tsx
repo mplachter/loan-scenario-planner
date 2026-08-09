@@ -12,13 +12,13 @@ import { computeMortgagePlan } from "@/lib/plan";
 import { monthlyLeftover } from "@/lib/budget";
 import { usd0 } from "@/lib/mortgage";
 import type { LoanInputs } from "@/lib/defaults";
+import type { Household } from "@/lib/household";
 import { SetupTab } from "@/components/tabs/SetupTab";
 import { StrategyTab } from "@/components/tabs/StrategyTab";
 import { CompareTab } from "@/components/tabs/CompareTab";
 import { ClosingTab } from "@/components/tabs/ClosingTab";
-import { BudgetTab } from "@/components/tabs/BudgetTab";
 
-export type TabId = "setup" | "strategy" | "compare" | "closing" | "budget";
+export type TabId = "setup" | "strategy" | "compare" | "closing";
 
 const ACTIVE_TAB_STORAGE_KEY = "loan-scenario-planner:active-tab";
 
@@ -27,15 +27,21 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "strategy", label: "Strategy" },
   { id: "compare", label: "Compare terms" },
   { id: "closing", label: "Closing" },
-  { id: "budget", label: "Budget" },
 ];
 
 interface BuyingCalculatorProps {
   inputs: LoanInputs;
   onChange: (patch: Partial<LoanInputs>) => void;
+  household: Household;
+  onHousingPaymentChange: (amount: number) => void;
 }
 
-export function BuyingCalculator({ inputs, onChange }: BuyingCalculatorProps) {
+export function BuyingCalculator({
+  inputs,
+  onChange,
+  household,
+  onHousingPaymentChange,
+}: BuyingCalculatorProps) {
   const readOnly = inputs.mode === "owning";
   const [activeTab, setActiveTab] = useState<TabId>(() => {
     try {
@@ -76,7 +82,11 @@ export function BuyingCalculator({ inputs, onChange }: BuyingCalculatorProps) {
     totalMonthlySteadyState,
     standardPI,
   } = plan;
-  const leftoverBreakdown = monthlyLeftover(inputs, totalMonthlySteadyState);
+  const leftoverBreakdown = monthlyLeftover(household, totalMonthlySteadyState);
+
+  useEffect(() => {
+    onHousingPaymentChange(totalMonthlySteadyState);
+  }, [totalMonthlySteadyState, onHousingPaymentChange]);
 
   if (inputs.ownershipStatus === "existing") {
     // There's no shopping plan to summarize for a loan that already existed
@@ -399,15 +409,6 @@ export function BuyingCalculator({ inputs, onChange }: BuyingCalculatorProps) {
           >
             <ClosingTab inputs={inputs} onChange={onChange} plan={plan} />
           </div>
-        </TabsContent>
-        {/* Budget describes the person, not the property (Phase 7) — never
-            wrapped in the `inert` read-only treatment above. */}
-        <TabsContent value="budget">
-          <BudgetTab
-            inputs={inputs}
-            onChange={onChange}
-            housingPayment={totalMonthlySteadyState}
-          />
         </TabsContent>
       </Tabs>
 

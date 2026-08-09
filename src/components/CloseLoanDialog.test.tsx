@@ -54,6 +54,66 @@ describe("CloseLoanDialog", () => {
     expect(firstPaymentField.value).toBe("2026-03-01");
   });
 
+  it("shows the already-set close date from inputs instead of today", async () => {
+    renderDialog({
+      closeDate: "2026-04-10",
+      firstPaymentDate: "2026-06-01",
+    });
+    await openDialog();
+
+    const closeDateField = screen
+      .getByText("Close date")
+      .parentElement!.querySelector('input[type="date"]')! as HTMLInputElement;
+    expect(closeDateField.value).toBe("2026-04-10");
+
+    const firstPaymentField = screen
+      .getByText("First payment date")
+      .parentElement!.querySelector('input[type="date"]')! as HTMLInputElement;
+    expect(firstPaymentField.value).toBe("2026-06-01");
+  });
+
+  it("re-seeds the close date fields on reopen after the underlying inputs change", async () => {
+    const inputs = {
+      ...DEFAULT_INPUTS,
+      closeDate: "2026-04-10",
+      firstPaymentDate: "2026-06-01",
+    };
+    const plan = computeMortgagePlan(inputs);
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <CloseLoanDialog inputs={inputs} onChange={onChange} plan={plan} />,
+    );
+
+    await openDialog();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    const nextInputs = {
+      ...inputs,
+      closeDate: "2026-05-20",
+      firstPaymentDate: "2026-07-01",
+    };
+    const nextPlan = computeMortgagePlan(nextInputs);
+    rerender(
+      <CloseLoanDialog
+        inputs={nextInputs}
+        onChange={onChange}
+        plan={nextPlan}
+      />,
+    );
+
+    await openDialog();
+
+    const closeDateField = screen
+      .getByText("Close date")
+      .parentElement!.querySelector('input[type="date"]')! as HTMLInputElement;
+    expect(closeDateField.value).toBe("2026-05-20");
+
+    const firstPaymentField = screen
+      .getByText("First payment date")
+      .parentElement!.querySelector('input[type="date"]')! as HTMLInputElement;
+    expect(firstPaymentField.value).toBe("2026-07-01");
+  });
+
   it("calls onChange exactly once with all seven snapshot keys when Apply is clicked", async () => {
     const { inputs, plan, onChange } = renderDialog();
     await openDialog();
