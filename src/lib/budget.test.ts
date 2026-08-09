@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   budgetByCategory,
   budgetTotal,
+  monthlyBonusIfSpread,
   monthlyLeftover,
   monthlyTakeHomeIncome,
   PAY_PERIODS_PER_YEAR,
@@ -35,33 +36,58 @@ describe("monthlyTakeHomeIncome", () => {
     },
   );
 
-  it("smooths an annual bonus evenly across all twelve months regardless of bonus month", () => {
-    const withBonusInMarch = monthlyTakeHomeIncome({
+  it("excludes an annual bonus entirely, whatever the household plans to do with it", () => {
+    const base = {
       ...DEFAULT_HOUSEHOLD,
-      payFrequency: "biweekly",
+      payFrequency: "biweekly" as const,
       netPayPerPaycheck: 2000,
-      annualBonusNet: 12000,
-      bonusMonth: 3,
-    });
-    const withBonusInDecember = monthlyTakeHomeIncome({
-      ...DEFAULT_HOUSEHOLD,
-      payFrequency: "biweekly",
-      netPayPerPaycheck: 2000,
-      annualBonusNet: 12000,
-      bonusMonth: 12,
-    });
-    // The monthly average deliberately ignores which calendar month the
-    // bonus lands in — that's only relevant once the bonus becomes a real
-    // dated timeline event (Phase 8's "send to timeline").
-    expect(withBonusInMarch).toBeCloseTo(withBonusInDecember);
-    expect(withBonusInMarch).toBeGreaterThan(
-      monthlyTakeHomeIncome({
+    };
+    const noBonus = monthlyTakeHomeIncome({ ...base, annualBonusNet: 0 });
+    // A once-a-year lump is never monthly income — not smoothed in, not
+    // partially credited, regardless of `bonusUse`.
+    for (const bonusUse of ["spread", "mortgage"] as const) {
+      expect(
+        monthlyTakeHomeIncome({ ...base, annualBonusNet: 12000, bonusUse }),
+      ).toBeCloseTo(noBonus);
+    }
+  });
+});
+
+describe("monthlyBonusIfSpread", () => {
+  it("divides the bonus across twelve months when it is spread", () => {
+    expect(
+      monthlyBonusIfSpread({
         ...DEFAULT_HOUSEHOLD,
-        payFrequency: "biweekly",
-        netPayPerPaycheck: 2000,
-        annualBonusNet: 0,
+        annualBonusNet: 12000,
+        bonusUse: "spread",
       }),
-    );
+    ).toBeCloseTo(1000);
+  });
+
+  it("is zero when the bonus is earmarked for the mortgage, so it can't be double-spent", () => {
+    expect(
+      monthlyBonusIfSpread({
+        ...DEFAULT_HOUSEHOLD,
+        annualBonusNet: 12000,
+        bonusUse: "mortgage",
+      }),
+    ).toBe(0);
+  });
+
+  it("ignores the bonus month — spreading is a flat twelfth either way", () => {
+    const march = monthlyBonusIfSpread({
+      ...DEFAULT_HOUSEHOLD,
+      annualBonusNet: 6000,
+      bonusMonth: 3,
+      bonusUse: "spread",
+    });
+    const december = monthlyBonusIfSpread({
+      ...DEFAULT_HOUSEHOLD,
+      annualBonusNet: 6000,
+      bonusMonth: 12,
+      bonusUse: "spread",
+    });
+    expect(march).toBeCloseTo(december);
   });
 });
 
@@ -158,5 +184,35 @@ describe("monthlyLeftover", () => {
     const breakdown = monthlyLeftover(household, 3000);
     expect(breakdown.leftover).toBeLessThan(0);
     expect(breakdown.leftover).toBeCloseTo(2000 - 1000 - 3000);
+  });
+
+  it("reports a spread bonus alongside leftover rather than inside it", () => {
+    const household = {
+      ...DEFAULT_HOUSEHOLD,
+      payFrequency: "monthly" as const,
+      netPayPerPaycheck: 6000,
+      annualBonusNet: 12000,
+      bonusUse: "spread" as const,
+      budgetItems: [],
+    };
+    const breakdown = monthlyLeftover(household, 2500);
+    expect(breakdown.income).toBeCloseTo(6000);
+    expect(breakdown.leftover).toBeCloseTo(3500);
+    expect(breakdown.bonusSpread).toBeCloseTo(1000);
+    expect(breakdown.leftoverWithBonus).toBeCloseTo(4500);
+  });
+
+  it("leaves a mortgage-earmarked bonus out of both leftover figures", () => {
+    const household = {
+      ...DEFAULT_HOUSEHOLD,
+      payFrequency: "monthly" as const,
+      netPayPerPaycheck: 6000,
+      annualBonusNet: 12000,
+      bonusUse: "mortgage" as const,
+      budgetItems: [],
+    };
+    const breakdown = monthlyLeftover(household, 2500);
+    expect(breakdown.bonusSpread).toBe(0);
+    expect(breakdown.leftoverWithBonus).toBeCloseTo(breakdown.leftover);
   });
 });

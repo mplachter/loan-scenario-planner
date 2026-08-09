@@ -12,12 +12,22 @@ export const PAY_PERIODS_PER_YEAR: Record<PayFrequency, number> = {
   monthly: 12,
 };
 
+// Paychecks only. An annual bonus is deliberately NOT folded in here: it lands
+// once a year, and averaging it into every month overstates the cash actually
+// available in the other eleven. Bonus money is surfaced separately via
+// `monthlyBonusIfSpread` (discretionary) or sent to the loan as a dated
+// timeline event (`bonusUse: "mortgage"`).
 export function monthlyTakeHomeIncome(household: Household): number {
-  const { payFrequency, netPayPerPaycheck, annualBonusNet } = household;
-  return (
-    (netPayPerPaycheck * PAY_PERIODS_PER_YEAR[payFrequency] + annualBonusNet) /
-    12
-  );
+  const { payFrequency, netPayPerPaycheck } = household;
+  return (netPayPerPaycheck * PAY_PERIODS_PER_YEAR[payFrequency]) / 12;
+}
+
+// The per-month value of a bonus the household plans to spread across the year.
+// Zero when the bonus is earmarked for the mortgage — that money is a lump on
+// the loan, not spendable monthly cash, and counting it both ways double-spends
+// it.
+export function monthlyBonusIfSpread(household: Household): number {
+  return household.bonusUse === "spread" ? household.annualBonusNet / 12 : 0;
 }
 
 export function budgetTotal(items: BudgetItem[]): number {
@@ -42,7 +52,13 @@ export interface LeftoverBreakdown {
   income: number;
   budgetTotal: number;
   housingPayment: number;
+  // Leftover from paycheck income alone — the headline number, and the one
+  // that has to clear zero every month.
   leftover: number;
+  // `monthlyBonusIfSpread`, restated here so consumers don't have to reach for
+  // the household again; 0 unless `bonusUse === "spread"`.
+  bonusSpread: number;
+  leftoverWithBonus: number;
 }
 
 export function monthlyLeftover(
@@ -51,10 +67,14 @@ export function monthlyLeftover(
 ): LeftoverBreakdown {
   const income = monthlyTakeHomeIncome(household);
   const total = budgetTotal(household.budgetItems);
+  const leftover = income - total - housingPayment;
+  const bonusSpread = monthlyBonusIfSpread(household);
   return {
     income,
     budgetTotal: total,
     housingPayment,
-    leftover: income - total - housingPayment,
+    leftover,
+    bonusSpread,
+    leftoverWithBonus: leftover + bonusSpread,
   };
 }

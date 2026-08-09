@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import { TimelineTab } from "@/components/tabs/TimelineTab";
 import { closedInputs, TODAY } from "@/test/servicingFixtures";
-import { dateToMonthISO } from "@/lib/dates";
+import { dateToMonthISO, monthToDateISO, parseISO } from "@/lib/dates";
 import {
   createEscrowChangeEvent,
   createLumpSumEvent,
@@ -15,6 +15,7 @@ import {
   type TimelineVariant,
 } from "@/lib/events";
 import type { LoanInputs } from "@/lib/defaults";
+import { DEFAULT_HOUSEHOLD, type Household } from "@/lib/household";
 import { servicingContextFromInputs, simulateServicing } from "@/lib/servicing";
 
 const CURRENT_MONTH = dateToMonthISO(closedInputs().firstPaymentDate, TODAY);
@@ -22,8 +23,10 @@ const CURRENT_MONTH = dateToMonthISO(closedInputs().firstPaymentDate, TODAY);
 function renderTimelineTab(
   events: MortgageEvent[] = [],
   overrides: Partial<LoanInputs> = {},
+  householdOverrides: Partial<Household> = {},
 ) {
   const inputs = closedInputs({ events, ...overrides });
+  const household = { ...DEFAULT_HOUSEHOLD, ...householdOverrides };
   const ctx = servicingContextFromInputs(inputs, TODAY);
   const result = simulateServicing(ctx, inputs.events);
   const baseline = simulateServicing(ctx, []);
@@ -36,9 +39,10 @@ function renderTimelineTab(
       result={result}
       baseline={baseline}
       currentMonth={CURRENT_MONTH}
+      household={household}
     />,
   );
-  return { inputs, ctx, result, baseline, onChange };
+  return { inputs, ctx, result, baseline, onChange, household };
 }
 
 describe("TimelineTab", () => {
@@ -58,6 +62,40 @@ describe("TimelineTab", () => {
     const patch = onChange.mock.calls[0]![0];
     expect(patch.events).toHaveLength(inputs.events.length + 1);
     expect(patch.events.at(-1).kind).toBe("lump");
+  });
+
+  it("seeds '+ Annual bonus' from the household bonus amount and calendar month", async () => {
+    const { onChange, inputs } = renderTimelineTab(
+      [],
+      {},
+      { annualBonusNet: 7500, bonusMonth: 11 },
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "+ Annual bonus" }),
+    );
+
+    const ev = onChange.mock.calls[0]![0].events.at(-1);
+    expect(ev).toMatchObject({
+      kind: "extra",
+      cadence: "annual",
+      amount: 7500,
+    });
+    // Lands on the next November after today, not a bare "a year from now".
+    expect(ev.month).toBeGreaterThan(CURRENT_MONTH);
+    expect(parseISO(monthToDateISO(inputs.firstPaymentDate, ev.month)).m).toBe(
+      11,
+    );
+  });
+
+  it("falls back to a placeholder bonus amount when the household has none", async () => {
+    const { onChange } = renderTimelineTab([], {}, { annualBonusNet: 0 });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "+ Annual bonus" }),
+    );
+
+    expect(onChange.mock.calls[0]![0].events.at(-1).amount).toBe(10000);
   });
 
   it("toggles an event's enabled flag via the row switch, replacing the whole events array", async () => {

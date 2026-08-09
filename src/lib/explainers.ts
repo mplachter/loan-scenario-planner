@@ -30,6 +30,7 @@ export type ExplainerKey =
   | "ltv"
   | "existingLoanEntry"
   | "takeHomeVsGross"
+  | "bonusIsNotIncome"
   | "fiftyThirtyTwenty";
 
 export const EXPLAINERS: Record<ExplainerKey, Explainer> = {
@@ -176,6 +177,13 @@ export const EXPLAINERS: Record<ExplainerKey, Explainer> = {
     why: "Getting this right from gross income means modeling federal tax brackets, FICA, and whichever of the 50 states' rules applies, all of which change every year. Your pay stub already has the correct after-tax number for your exact situation, so asking for it sidesteps that entirely.",
     watchOut:
       "This app doesn't do any tax-bracket math anywhere — if your pay changes (a raise, a new 401(k) contribution rate), update this number by hand.",
+  },
+  bonusIsNotIncome: {
+    term: "Why a bonus isn't monthly income",
+    what: "An annual bonus is kept out of the take-home income line entirely. It's tracked on its own as a once-a-year pile of cash you decide what to do with: spread it across the year as spending money, or send it at the loan as an annual extra principal payment.",
+    why: "Dividing a bonus by 12 and calling it income makes every month look richer than it is — you'd be budgeting against money you won't have until March. Keeping it separate means the leftover number reflects cash you can actually count on every month.",
+    watchOut:
+      "Bonuses aren't guaranteed. If yours varies year to year, enter a conservative take-home estimate, and don't lean on it to make a payment work.",
   },
   fiftyThirtyTwenty: {
     term: "The 50/30/20 rule",

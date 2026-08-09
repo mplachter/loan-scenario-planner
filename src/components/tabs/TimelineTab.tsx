@@ -47,7 +47,12 @@ import { NumberInput } from "@/components/ui/number-input";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { dateToMonthISO, formatMonthYear, monthToDateISO } from "@/lib/dates";
+import {
+  dateToMonthISO,
+  formatMonthYear,
+  monthToDateISO,
+  parseISO,
+} from "@/lib/dates";
 import {
   TERMS,
   type ClosedLoanInputs,
@@ -68,6 +73,7 @@ import {
   type TimelineVariant,
 } from "@/lib/events";
 import type { ExplainerKey } from "@/lib/explainers";
+import type { Household } from "@/lib/household";
 import { usd0 } from "@/lib/mortgage";
 import {
   attributeEvents,
@@ -82,6 +88,7 @@ interface TimelineTabProps {
   result: ServicingResult;
   baseline: ServicingResult;
   currentMonth: number;
+  household: Household;
 }
 
 function summarizeEvent(
@@ -159,52 +166,83 @@ function paymentImpact(
   return null;
 }
 
+// Month index of the next occurrence of a 1-indexed calendar month, at or after
+// `notBefore`. Bonuses are pinned to a calendar month ("every March"), while
+// timeline events are indexed off the first payment date.
+function nextCalendarMonthIndex(
+  firstPaymentDate: string,
+  calendarMonth: number,
+  notBefore: number,
+): number {
+  const { m } = parseISO(monthToDateISO(firstPaymentDate, notBefore));
+  return notBefore + ((calendarMonth - m + 12) % 12);
+}
+
+interface AddEventContext {
+  defaultMonth: number;
+  currentMonth: number;
+  firstPaymentDate: string;
+  household: Household;
+}
+
 const ADD_EVENT_DEFS: {
   key: string;
   label: string;
   explainKey: ExplainerKey;
-  create: (month: number) => MortgageEvent;
+  create: (ctx: AddEventContext) => MortgageEvent;
 }[] = [
   {
     key: "refinance",
     label: "+ Refinance",
     explainKey: "refinance",
-    create: (month) => createRefinanceEvent(month),
+    create: ({ defaultMonth }) => createRefinanceEvent(defaultMonth),
   },
   {
     key: "extra-monthly",
     label: "+ Monthly extra",
     explainKey: "recurringExtra",
-    create: (month) => createRecurringExtraEvent(month, { cadence: "monthly" }),
+    create: ({ defaultMonth }) =>
+      createRecurringExtraEvent(defaultMonth, { cadence: "monthly" }),
   },
   {
     key: "extra-annual",
     label: "+ Annual bonus",
     explainKey: "recurringExtra",
-    create: (month) =>
-      createRecurringExtraEvent(month, {
-        cadence: "annual",
-        amount: 10000,
-        endMonth: null,
-      }),
+    // Pre-filled from the Budget tab's bonus: its amount, landing in its
+    // calendar month. That's the whole point of the bonus living outside
+    // monthly income — it shows up here as principal instead.
+    create: ({ currentMonth, firstPaymentDate, household }) =>
+      createRecurringExtraEvent(
+        nextCalendarMonthIndex(
+          firstPaymentDate,
+          household.bonusMonth,
+          currentMonth + 1,
+        ),
+        {
+          cadence: "annual",
+          amount:
+            household.annualBonusNet > 0 ? household.annualBonusNet : 10000,
+          endMonth: null,
+        },
+      ),
   },
   {
     key: "lump",
     label: "+ Lump sum",
     explainKey: "lumpSum",
-    create: (month) => createLumpSumEvent(month),
+    create: ({ defaultMonth }) => createLumpSumEvent(defaultMonth),
   },
   {
     key: "recast",
     label: "+ Recast",
     explainKey: "recast",
-    create: (month) => createRecastEvent(month),
+    create: ({ defaultMonth }) => createRecastEvent(defaultMonth),
   },
   {
     key: "escrow",
     label: "+ Escrow change",
     explainKey: "escrow",
-    create: (month) => createEscrowChangeEvent(month),
+    create: ({ defaultMonth }) => createEscrowChangeEvent(defaultMonth),
   },
 ];
 
@@ -215,6 +253,7 @@ export function TimelineTab({
   result,
   baseline,
   currentMonth,
+  household,
 }: TimelineTabProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const firstPaymentDate = inputs.firstPaymentDate;
@@ -226,8 +265,13 @@ export function TimelineTab({
   const pastEvents = sortedEvents.filter((e) => e.month <= currentMonth);
   const upcomingEvents = sortedEvents.filter((e) => e.month > currentMonth);
 
-  function addEvent(create: (month: number) => MortgageEvent) {
-    const ev = create(currentMonth + 12);
+  function addEvent(create: (ctx: AddEventContext) => MortgageEvent) {
+    const ev = create({
+      defaultMonth: currentMonth + 12,
+      currentMonth,
+      firstPaymentDate,
+      household,
+    });
     onChange({ events: [...inputs.events, ev] });
     setEditingId(ev.id);
   }

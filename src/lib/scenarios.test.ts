@@ -165,7 +165,10 @@ describe("loadStore", () => {
 
     const loaded = loadStore();
 
-    expect(loaded.household).toEqual(storedHousehold);
+    expect(loaded.household).toMatchObject(storedHousehold);
+    // Fields added after a payload was written fall back to the default
+    // rather than landing as `undefined`.
+    expect(loaded.household.bonusUse).toBe(DEFAULT_HOUSEHOLD.bonusUse);
   });
 
   it("strips legacy household keys off a loaded scenario's inputs", () => {
