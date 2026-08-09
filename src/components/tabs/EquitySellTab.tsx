@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -49,8 +49,12 @@ export function EquitySellTab({
 
   const currentYear = Math.max(Math.round(currentMonth / 12), 0);
   const maxYear = Math.max(result.yearly.length - 1, 1);
-  const [saleYear, setSaleYear] = useState(() =>
-    Math.min(currentYear + 5, maxYear),
+  // Until the user drags the slider, the sale year follows the ownership
+  // horizon from loan setup, so every scenario opens on the plan it was set up
+  // with. Their pick persists with the scenario (see `saleYear` in defaults).
+  const saleYear = Math.min(
+    Math.max(inputs.saleYear ?? inputs.holdYears, 0),
+    maxYear,
   );
 
   const proceeds = netProceedsAt(ctx, result, saleYear, inputs.sellingCostPct);
@@ -110,7 +114,7 @@ export function EquitySellTab({
           </div>
           <Slider
             value={saleYear}
-            onValueChange={(v) => setSaleYear(v as number)}
+            onValueChange={(v) => onChange({ saleYear: v as number })}
             min={0}
             max={maxYear}
             step={1}
