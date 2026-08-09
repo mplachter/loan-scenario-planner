@@ -263,11 +263,14 @@ export function TimelineTab({
     [inputs.events],
   );
   const pastEvents = sortedEvents.filter((e) => e.month <= currentMonth);
-  const upcomingEvents = sortedEvents.filter((e) => e.month > currentMonth);
+  // Negated rather than `> currentMonth` so an event with a non-finite month
+  // (e.g. left over from an older build that let a half-typed date through)
+  // still lands in a list where it can be edited or deleted.
+  const upcomingEvents = sortedEvents.filter((e) => !(e.month <= currentMonth));
 
   function addEvent(create: (ctx: AddEventContext) => MortgageEvent) {
     const ev = create({
-      defaultMonth: currentMonth + 12,
+      defaultMonth: Math.max(currentMonth + 1, 1),
       currentMonth,
       firstPaymentDate,
       household,
@@ -906,6 +909,19 @@ function EventRow({
   );
 }
 
+// A `type="date"` input reports "" while the user is part-way through typing a
+// date by hand. Feeding that to dateToMonthISO yields NaN, which sticks to the
+// event as an unfixable "Invalid Date" — so hold the last good month instead.
+function monthFromDateInput(
+  firstPaymentDate: string,
+  value: string,
+  min: number,
+): number | null {
+  if (!value) return null;
+  const month = dateToMonthISO(firstPaymentDate, value);
+  return Number.isFinite(month) ? Math.max(month, min) : null;
+}
+
 function MonthField({
   month,
   firstPaymentDate,
@@ -915,17 +931,26 @@ function MonthField({
   firstPaymentDate: string;
   onChange: (month: number) => void;
 }) {
+  const dateValue = Number.isFinite(month)
+    ? monthToDateISO(firstPaymentDate, month)
+    : "";
   return (
-    <Field label="Date" hint={`Year ${Math.max(Math.ceil(month / 12), 1)}`}>
+    <Field
+      label="Date"
+      hint={
+        Number.isFinite(month)
+          ? `Year ${Math.max(Math.ceil(month / 12), 1)}`
+          : undefined
+      }
+    >
       <input
         type="date"
         min={firstPaymentDate}
-        value={monthToDateISO(firstPaymentDate, month)}
-        onChange={(e) =>
-          onChange(
-            Math.max(dateToMonthISO(firstPaymentDate, e.target.value), 1),
-          )
-        }
+        value={dateValue}
+        onChange={(e) => {
+          const next = monthFromDateInput(firstPaymentDate, e.target.value, 1);
+          if (next !== null) onChange(next);
+        }}
         className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
       />
     </Field>
@@ -1063,14 +1088,14 @@ function EventEditor({
               type="date"
               min={monthToDateISO(firstPaymentDate, ev.month)}
               value={monthToDateISO(firstPaymentDate, ev.endMonth)}
-              onChange={(e) =>
-                onUpdate({
-                  endMonth: Math.max(
-                    dateToMonthISO(firstPaymentDate, e.target.value),
-                    ev.month,
-                  ),
-                })
-              }
+              onChange={(e) => {
+                const next = monthFromDateInput(
+                  firstPaymentDate,
+                  e.target.value,
+                  ev.month,
+                );
+                if (next !== null) onUpdate({ endMonth: next });
+              }}
               className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
             />
           )}

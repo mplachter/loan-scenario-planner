@@ -202,6 +202,40 @@ describe("TimelineTab", () => {
     });
   });
 
+  it("ignores a cleared date instead of writing a NaN month", async () => {
+    const ev = createLumpSumEvent(CURRENT_MONTH + 1, { amount: 5000 });
+    const { onChange } = renderTimelineTab([ev]);
+
+    const row = screen
+      .getAllByText(/Lump sum \$5,000/)[0]!
+      .closest<HTMLElement>(".rounded-lg")!;
+    await userEvent.click(within(row).getAllByRole("button")[0]!);
+
+    const dateInput = screen
+      .getByText("Date")
+      .parentElement!.querySelector('input[type="date"]')! as HTMLInputElement;
+    fireEvent.change(dateInput, { target: { value: "" } });
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps an event with a non-finite month editable so it can be fixed or deleted", () => {
+    const ev = createLumpSumEvent(Number.NaN, { amount: 5000 });
+    renderTimelineTab([ev]);
+
+    expect(screen.getAllByText(/Lump sum \$5,000/).length).toBeGreaterThan(0);
+  });
+
+  it("defaults a new event to the month after today, not a year out", async () => {
+    const { onChange } = renderTimelineTab([]);
+
+    await userEvent.click(screen.getByRole("button", { name: "+ Lump sum" }));
+
+    expect(onChange.mock.calls[0]![0].events.at(-1).month).toBe(
+      CURRENT_MONTH + 1,
+    );
+  });
+
   it("shows a before/after payment line for a refinance event", () => {
     renderTimelineTab([
       createRefinanceEvent(CURRENT_MONTH + 1, { rate: 4.5, termYears: 15 }),
