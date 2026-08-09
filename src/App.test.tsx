@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import App from "@/App";
 import { DEFAULT_INPUTS, type LoanInputs } from "@/lib/defaults";
+import { DEFAULT_HOUSEHOLD } from "@/lib/household";
 import type { ScenarioStore } from "@/lib/scenarios";
 import { closedInputs } from "@/test/servicingFixtures";
 
@@ -27,6 +28,7 @@ function createMemoryStorage() {
 
 function seedStore(inputs: LoanInputs, name = "My Home") {
   const store: ScenarioStore = {
+    household: DEFAULT_HOUSEHOLD,
     scenarios: [
       {
         id: "scenario-1",
@@ -96,5 +98,31 @@ describe("App", () => {
       screen.queryByRole("button", { name: "Buying" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Timeline" })).toBeInTheDocument();
+  });
+
+  it("shows a persistent Budget entry point that swaps in the household Budget view without unmounting ScenarioBar", async () => {
+    render(<App />);
+
+    expect(
+      screen.queryByRole("heading", { name: "Household budget" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Budget" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Household budget" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "New scenario" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Back to scenario" }),
+    );
+
+    expect(
+      screen.queryByRole("heading", { name: "Household budget" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/Your payment/)).toBeInTheDocument();
   });
 });

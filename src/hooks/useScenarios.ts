@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { LoanInputs } from "@/lib/defaults";
+import type { Household } from "@/lib/household";
 import {
   createScenario,
   loadStore,
@@ -37,10 +38,18 @@ export function useScenarios() {
     }));
   }
 
+  function updateHousehold(patch: Partial<Household>) {
+    setStore((prev) => ({
+      ...prev,
+      household: { ...prev.household, ...patch },
+    }));
+  }
+
   function createScenarioAndActivate() {
     setStore((prev) => {
       const scenario = createScenario(`Scenario ${prev.scenarios.length + 1}`);
       return {
+        ...prev,
         scenarios: [...prev.scenarios, scenario],
         activeScenarioId: scenario.id,
       };
@@ -60,12 +69,16 @@ export function useScenarios() {
     setStore((prev) => {
       if (prev.scenarios.length === 1) {
         const scenario = createScenario("Scenario 1");
-        return { scenarios: [scenario], activeScenarioId: scenario.id };
+        return {
+          ...prev,
+          scenarios: [scenario],
+          activeScenarioId: scenario.id,
+        };
       }
       const scenarios = prev.scenarios.filter((s) => s.id !== id);
       const activeScenarioId =
         prev.activeScenarioId === id ? scenarios[0].id : prev.activeScenarioId;
-      return { scenarios, activeScenarioId };
+      return { ...prev, scenarios, activeScenarioId };
     });
   }
 
@@ -86,6 +99,7 @@ export function useScenarios() {
         inputs: structuredClone(source.inputs),
       };
       return {
+        ...prev,
         scenarios: [...prev.scenarios, copy],
         activeScenarioId: copy.id,
       };
@@ -95,6 +109,8 @@ export function useScenarios() {
   return {
     scenarios: store.scenarios,
     activeScenario: activeScenario as Scenario,
+    household: store.household,
+    updateHousehold,
     updateActiveInputs,
     createScenario: createScenarioAndActivate,
     renameScenario,

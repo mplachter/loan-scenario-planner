@@ -12,15 +12,15 @@ import { LedgerTab } from "@/components/tabs/LedgerTab";
 import { ManageTab } from "@/components/tabs/ManageTab";
 import { EquitySellTab } from "@/components/tabs/EquitySellTab";
 import { VariantsTab } from "@/components/tabs/VariantsTab";
-import { BudgetTab } from "@/components/tabs/BudgetTab";
 import { dateToMonthISO, formatMonthYear, todayISO } from "@/lib/dates";
 import type { ClosedLoanInputs, LoanInputs } from "@/lib/defaults";
+import type { Household } from "@/lib/household";
 import { monthlyLeftover } from "@/lib/budget";
 import { usd0 } from "@/lib/mortgage";
 import { servicingContextFromInputs, simulateServicing } from "@/lib/servicing";
 
 export type OwningTabId =
-  "timeline" | "variants" | "manage" | "sell" | "ledger" | "budget";
+  "timeline" | "variants" | "manage" | "sell" | "ledger";
 
 const ACTIVE_TAB_STORAGE_KEY = "loan-scenario-planner:active-tab-owning";
 
@@ -30,7 +30,6 @@ const TABS: { id: OwningTabId; label: string }[] = [
   { id: "manage", label: "Manage" },
   { id: "sell", label: "Equity & sell" },
   { id: "ledger", label: "Ledger" },
-  { id: "budget", label: "Budget" },
 ];
 
 // `ClosedLoanInputs` (not `LoanInputs`) so the type system enforces what the
@@ -39,9 +38,16 @@ const TABS: { id: OwningTabId; label: string }[] = [
 interface OwningCalculatorProps {
   inputs: ClosedLoanInputs;
   onChange: (patch: Partial<LoanInputs>) => void;
+  household: Household;
+  onHousingPaymentChange: (amount: number) => void;
 }
 
-export function OwningCalculator({ inputs, onChange }: OwningCalculatorProps) {
+export function OwningCalculator({
+  inputs,
+  onChange,
+  household,
+  onHousingPaymentChange,
+}: OwningCalculatorProps) {
   const [activeTab, setActiveTab] = useState<OwningTabId>(() => {
     try {
       const stored = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
@@ -88,7 +94,11 @@ export function OwningCalculator({ inputs, onChange }: OwningCalculatorProps) {
   );
   const interestSaved = baseline.totalInterest - result.totalInterest;
   const housingPayment = currentRow?.totalOutflow ?? 0;
-  const leftoverBreakdown = monthlyLeftover(inputs, housingPayment);
+  const leftoverBreakdown = monthlyLeftover(household, housingPayment);
+
+  useEffect(() => {
+    onHousingPaymentChange(housingPayment);
+  }, [housingPayment, onHousingPaymentChange]);
   const appreciatedValueToday =
     ctx.purchasePrice *
     Math.pow(1 + ctx.homeAppreciationPct / 100, currentMonth / 12);
@@ -337,13 +347,6 @@ export function OwningCalculator({ inputs, onChange }: OwningCalculatorProps) {
             result={result}
             events={inputs.events}
             currentMonth={currentMonth}
-          />
-        </TabsContent>
-        <TabsContent value="budget">
-          <BudgetTab
-            inputs={inputs}
-            onChange={onChange}
-            housingPayment={housingPayment}
           />
         </TabsContent>
       </Tabs>

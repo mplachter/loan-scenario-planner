@@ -44,9 +44,13 @@ export function CloseLoanDialog({
   onChange,
   plan,
 }: CloseLoanDialogProps) {
-  const [closeDate, setCloseDate] = useState(() => todayISO());
-  const [firstPaymentDate, setFirstPaymentDate] = useState(() =>
-    firstPaymentDateFor(todayISO()),
+  const [closeDate, setCloseDate] = useState(
+    () => inputs.closeDate ?? todayISO(),
+  );
+  const [firstPaymentDate, setFirstPaymentDate] = useState(
+    () =>
+      inputs.firstPaymentDate ??
+      firstPaymentDateFor(inputs.closeDate ?? todayISO()),
   );
   const [servicedLoanAmount, setServicedLoanAmount] = useState(
     () => plan.loanAmount,
@@ -78,8 +82,15 @@ export function CloseLoanDialog({
       );
     }
     return events;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    inputs.extraMode,
+    plan.extraSteady,
+    inputs.refiEnabled,
+    inputs.refiYear,
+    inputs.refiRate,
+    inputs.refiTerm,
+    inputs.refiClosingCostPct,
+  ]);
 
   function handleCloseDateChange(v: string) {
     setCloseDate(v);
@@ -87,7 +98,19 @@ export function CloseLoanDialog({
   }
 
   return (
-    <Dialog>
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) return;
+        const seedClose = inputs.closeDate ?? todayISO();
+        setCloseDate(seedClose);
+        setFirstPaymentDate(
+          inputs.firstPaymentDate ?? firstPaymentDateFor(seedClose),
+        );
+        setServicedLoanAmount(plan.loanAmount);
+        setServicedRate(plan.rate);
+        setServicedTerm(inputs.term);
+      }}
+    >
       <DialogTrigger
         render={
           <Button

@@ -6,7 +6,11 @@ import {
   monthlyTakeHomeIncome,
   PAY_PERIODS_PER_YEAR,
 } from "./budget";
-import { DEFAULT_INPUTS, type BudgetItem, type PayFrequency } from "./defaults";
+import {
+  DEFAULT_HOUSEHOLD,
+  type BudgetItem,
+  type PayFrequency,
+} from "./household";
 
 describe("monthlyTakeHomeIncome", () => {
   const frequencies: PayFrequency[] = [
@@ -19,13 +23,13 @@ describe("monthlyTakeHomeIncome", () => {
   it.each(frequencies)(
     "converts a %s paycheck into a correct monthly average",
     (payFrequency) => {
-      const inputs = {
-        ...DEFAULT_INPUTS,
+      const household = {
+        ...DEFAULT_HOUSEHOLD,
         payFrequency,
         netPayPerPaycheck: 2000,
         annualBonusNet: 0,
       };
-      expect(monthlyTakeHomeIncome(inputs)).toBeCloseTo(
+      expect(monthlyTakeHomeIncome(household)).toBeCloseTo(
         (2000 * PAY_PERIODS_PER_YEAR[payFrequency]) / 12,
       );
     },
@@ -33,14 +37,14 @@ describe("monthlyTakeHomeIncome", () => {
 
   it("smooths an annual bonus evenly across all twelve months regardless of bonus month", () => {
     const withBonusInMarch = monthlyTakeHomeIncome({
-      ...DEFAULT_INPUTS,
+      ...DEFAULT_HOUSEHOLD,
       payFrequency: "biweekly",
       netPayPerPaycheck: 2000,
       annualBonusNet: 12000,
       bonusMonth: 3,
     });
     const withBonusInDecember = monthlyTakeHomeIncome({
-      ...DEFAULT_INPUTS,
+      ...DEFAULT_HOUSEHOLD,
       payFrequency: "biweekly",
       netPayPerPaycheck: 2000,
       annualBonusNet: 12000,
@@ -52,7 +56,7 @@ describe("monthlyTakeHomeIncome", () => {
     expect(withBonusInMarch).toBeCloseTo(withBonusInDecember);
     expect(withBonusInMarch).toBeGreaterThan(
       monthlyTakeHomeIncome({
-        ...DEFAULT_INPUTS,
+        ...DEFAULT_HOUSEHOLD,
         payFrequency: "biweekly",
         netPayPerPaycheck: 2000,
         annualBonusNet: 0,
@@ -113,8 +117,8 @@ describe("budgetTotal and budgetByCategory", () => {
 
 describe("monthlyLeftover", () => {
   it("computes leftover as income minus budget minus housing", () => {
-    const inputs = {
-      ...DEFAULT_INPUTS,
+    const household = {
+      ...DEFAULT_HOUSEHOLD,
       payFrequency: "monthly" as const,
       netPayPerPaycheck: 6000,
       annualBonusNet: 0,
@@ -128,7 +132,7 @@ describe("monthlyLeftover", () => {
         },
       ],
     };
-    const breakdown = monthlyLeftover(inputs, 2500);
+    const breakdown = monthlyLeftover(household, 2500);
     expect(breakdown.income).toBeCloseTo(6000);
     expect(breakdown.budgetTotal).toBe(600);
     expect(breakdown.housingPayment).toBe(2500);
@@ -136,8 +140,8 @@ describe("monthlyLeftover", () => {
   });
 
   it("goes negative without clamping when spending exceeds income, since that is a real and important signal", () => {
-    const inputs = {
-      ...DEFAULT_INPUTS,
+    const household = {
+      ...DEFAULT_HOUSEHOLD,
       payFrequency: "monthly" as const,
       netPayPerPaycheck: 2000,
       annualBonusNet: 0,
@@ -151,7 +155,7 @@ describe("monthlyLeftover", () => {
         },
       ],
     };
-    const breakdown = monthlyLeftover(inputs, 3000);
+    const breakdown = monthlyLeftover(household, 3000);
     expect(breakdown.leftover).toBeLessThan(0);
     expect(breakdown.leftover).toBeCloseTo(2000 - 1000 - 3000);
   });

@@ -34,6 +34,7 @@ describe("AlertDialog", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Delete "Scenario 1"?')).not.toBeInTheDocument();
   });
 
   it("closes without confirming when Cancel is clicked", async () => {

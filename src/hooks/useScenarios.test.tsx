@@ -173,4 +173,31 @@ describe("useScenarios", () => {
       654321,
     );
   });
+
+  it("updateHousehold shallow-merges into store.household", () => {
+    const { result } = renderHook(() => useScenarios());
+
+    act(() => {
+      result.current.updateHousehold({ netPayPerPaycheck: 3000 });
+    });
+
+    expect(result.current.household.netPayPerPaycheck).toBe(3000);
+    expect(result.current.household.payFrequency).toBe("biweekly");
+  });
+
+  it("createScenario and duplicateScenario leave household untouched", () => {
+    const { result } = renderHook(() => useScenarios());
+    const householdBefore = result.current.household;
+
+    act(() => {
+      result.current.createScenario();
+    });
+    expect(result.current.household).toBe(householdBefore);
+
+    const sourceId = result.current.scenarios[0].id;
+    act(() => {
+      result.current.duplicateScenario(sourceId);
+    });
+    expect(result.current.household).toBe(householdBefore);
+  });
 });

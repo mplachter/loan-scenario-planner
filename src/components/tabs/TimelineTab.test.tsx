@@ -1,14 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { TimelineTab } from "@/components/tabs/TimelineTab";
 import { closedInputs, TODAY } from "@/test/servicingFixtures";
 import { dateToMonthISO } from "@/lib/dates";
 import {
+  createEscrowChangeEvent,
   createLumpSumEvent,
+  createRecastEvent,
+  createRecurringExtraEvent,
   createRefinanceEvent,
   type MortgageEvent,
+  type TimelineVariant,
 } from "@/lib/events";
 import type { LoanInputs } from "@/lib/defaults";
 import { servicingContextFromInputs, simulateServicing } from "@/lib/servicing";
@@ -136,5 +140,95 @@ describe("TimelineTab", () => {
     ]);
 
     expect(screen.getByText("What each lever is doing")).toBeInTheDocument();
+  });
+
+  it("clamps a date picked before the first payment date to month 1", async () => {
+    const ev = createLumpSumEvent(CURRENT_MONTH + 1, { amount: 5000 });
+    const { onChange } = renderTimelineTab([ev]);
+
+    const row = screen
+      .getAllByText(/Lump sum \$5,000/)[0]!
+      .closest<HTMLElement>(".rounded-lg")!;
+    const editButton = within(row).getAllByRole("button")[0]!;
+    await userEvent.click(editButton);
+
+    const dateInput = screen
+      .getByText("Date")
+      .parentElement!.querySelector('input[type="date"]')! as HTMLInputElement;
+    expect(dateInput.min).toBe("2026-05-01");
+
+    fireEvent.change(dateInput, { target: { value: "2020-01-01" } });
+
+    expect(onChange).toHaveBeenCalledWith({
+      events: [{ ...ev, month: 1 }],
+    });
+  });
+
+  it("shows a before/after payment line for a refinance event", () => {
+    renderTimelineTab([
+      createRefinanceEvent(CURRENT_MONTH + 1, { rate: 4.5, termYears: 15 }),
+    ]);
+
+    expect(screen.getByText(/Payment: /)).toBeInTheDocument();
+  });
+
+  it("shows a before/after payment line for a recast event", () => {
+    renderTimelineTab([
+      createRecastEvent(CURRENT_MONTH + 1, { lumpSum: 50000 }),
+    ]);
+
+    expect(screen.getByText(/Payment: /)).toBeInTheDocument();
+  });
+
+  it("shows a before/after escrow line for an escrow-change event", () => {
+    renderTimelineTab([
+      createEscrowChangeEvent(CURRENT_MONTH + 1, {
+        taxAnnual: 9000,
+        insuranceAnnual: 3000,
+      }),
+    ]);
+
+    expect(screen.getByText(/Escrow: /)).toBeInTheDocument();
+  });
+
+  it("shows a before/after total-outflow line for a recurring extra-payment event", () => {
+    renderTimelineTab([
+      createRecurringExtraEvent(CURRENT_MONTH + 1, {
+        cadence: "monthly",
+        amount: 500,
+      }),
+    ]);
+
+    expect(screen.getByText(/Total monthly outflow: /)).toBeInTheDocument();
+  });
+
+  it("closes the Load confirmation dialog and loads the variant's events", async () => {
+    const variant: TimelineVariant = {
+      id: "v1",
+      name: "Refi @3+5",
+      events: [createLumpSumEvent(CURRENT_MONTH + 1, { amount: 1000 })],
+    };
+    const currentEvent = createLumpSumEvent(CURRENT_MONTH + 2, {
+      amount: 2000,
+    });
+    const { onChange } = renderTimelineTab([currentEvent], {
+      variants: [variant],
+    });
+
+    expect(screen.getByText("Refi @3+5")).toBeInTheDocument();
+    expect(screen.getByText(/1 event/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Load" }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(
+      within(dialog).getByText(/Replace your current timeline/),
+    ).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Load" }));
+
+    expect(onChange).toHaveBeenCalledWith({ events: variant.events });
+    expect(
+      screen.queryByText(/Replace your current timeline/),
+    ).not.toBeInTheDocument();
   });
 });
