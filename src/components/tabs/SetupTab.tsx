@@ -1,19 +1,34 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { Explain, ExplainerNote } from "@/components/ui/explainer";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { TERMS, type LoanInputs, type LoanTerm } from "@/lib/defaults";
+import {
+  TERMS,
+  type LoanInputs,
+  type LoanTerm,
+  type OwnershipStatus,
+} from "@/lib/defaults";
 import { usd0 } from "@/lib/mortgage";
 import type { MortgagePlan } from "@/lib/plan";
+import {
+  ExistingLoanSection,
+  STARTER_EXISTING_LOAN,
+} from "@/components/tabs/ExistingLoanSection";
 
 interface SetupTabProps {
   inputs: LoanInputs;
   onChange: (patch: Partial<LoanInputs>) => void;
   plan: MortgagePlan;
 }
+
+const OWNERSHIP_OPTIONS: { value: OwnershipStatus; label: string }[] = [
+  { value: "shopping", label: "I'm shopping for a home" },
+  { value: "existing", label: "I already own a home" },
+];
 
 export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
   const {
@@ -34,6 +49,7 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
     tvMonthly,
     holdYears,
     homeAppreciationPct,
+    ownershipStatus,
   } = inputs;
   const {
     loanAmount,
@@ -46,8 +62,56 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
     accelerated,
   } = plan;
 
+  const ownershipToggle = (
+    <>
+      <ToggleGroup
+        variant="outline"
+        value={[ownershipStatus]}
+        onValueChange={(vals) => {
+          const next = vals[0] as OwnershipStatus | undefined;
+          if (!next) return;
+          if (next === "existing") {
+            // Initialize the nested record on first switch so the section
+            // below always has something to render/edit; later switches
+            // reuse whatever's already there instead of resetting it.
+            onChange({
+              ownershipStatus: next,
+              existingLoan: inputs.existingLoan ?? STARTER_EXISTING_LOAN,
+            });
+          } else {
+            onChange({ ownershipStatus: next });
+          }
+        }}
+        className="mb-3 flex-wrap"
+      >
+        {OWNERSHIP_OPTIONS.map((o) => (
+          <ToggleGroupItem key={o.value} value={o.value}>
+            {o.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <div className="mb-6">
+        <ExplainerNote k="existingLoanEntry" />
+      </div>
+    </>
+  );
+
+  if (ownershipStatus === "existing") {
+    // Already own a home — none of the shopping-flow fields below (purchase
+    // price, points, closing costs) describe a loan that already closed
+    // before this app existed. Show just the toggle and the existing-loan
+    // entry path.
+    return (
+      <>
+        {ownershipToggle}
+        <ExistingLoanSection inputs={inputs} onChange={onChange} />
+      </>
+    );
+  }
+
   return (
     <>
+      {ownershipToggle}
       <SectionTitle
         title="Loan setup"
         note="Adjust price, down payment, term, and rate. Rates prefill with mid-July 2026 market averages — swap in whatever your lender actually quotes."
@@ -64,7 +128,13 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
               />
             </Field>
             <Field
-              label={`Down payment — ${downPct}% (${usd0(plan.downPayment)})`}
+              label={
+                <>
+                  Down payment — {downPct}% ({usd0(plan.downPayment)},{" "}
+                  {plan.ltv}
+                  % LTV) <Explain k="ltv" />
+                </>
+              }
               hint={
                 downPct < 20
                   ? "Below 20% triggers estimated PMI below."
@@ -123,9 +193,9 @@ export function SetupTab({ inputs, onChange, plan }: SetupTabProps) {
 
           {pmiAnnual > 0 && (
             <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-              Estimated PMI: {usd0(monthlyPMI)}/mo (rough 0.6% annual estimate
-              on the loan balance — actual PMI depends on credit score and LTV,
-              and drops off entirely at 20% or more down).
+              Estimated PMI <Explain k="pmi" />: {usd0(monthlyPMI)}/mo (rough
+              0.6% annual estimate on the loan balance — actual PMI depends on
+              credit score and LTV, and drops off entirely at 20% or more down).
               {pmiCancelMonth !== null ? (
                 <div className="mt-1">
                   At your current paydown pace, PMI should be cancellable around

@@ -2,23 +2,7 @@
 
 A client-only React/TypeScript calculator for modeling home-purchase costs, mortgage terms, rate buydowns, extra-payment strategies, and refinancing. No backend — everything runs in the browser and persists to `localStorage`. Deployed as a static site to GitHub Pages.
 
-## Stack
-
-React 19 + TypeScript, Vite, Tailwind CSS v4, shadcn/ui (`base-nova` style, "neutral" base color, Radix/base-ui primitives) + lucide-react icons, Recharts, Vitest. Node version pinned in `.nvmrc` (22).
-
-## Commands
-
-```bash
-npm run dev            # Vite dev server
-npm run build           # tsc typecheck + vite build
-npm run lint             # ESLint
-npm run typecheck        # tsc --noEmit
-npm run format            # Prettier --write
-npm run format:check      # Prettier --check
-npm run test               # Vitest run (src/**/*.test.ts)
-```
-
-CI (`.github/workflows/*.yml`) runs lint, typecheck, format:check, test, and build on every push/PR to `main`, then deploys `dist/` to GitHub Pages on push to `main`. Keep changes green against all four checks before considering a task done — CI has no separate "warnings only" tier.
+Keep changes green against lint, typecheck, format:check, test, and build before considering a task done — CI has no separate "warnings only" tier.
 
 ## Architecture
 

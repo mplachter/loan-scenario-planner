@@ -1,3 +1,4 @@
+import { daysInMonthUTC, parseISO } from "./dates";
 import { amortize, pmt } from "./mortgage";
 import {
   TERMS,
@@ -121,6 +122,8 @@ export interface MortgagePlan {
   totalMonthlySteadyState: number;
   closingCosts: number;
   prepaids: number;
+  prepaidInterestDays: number;
+  prepaidInterest: number;
   sellerCreditAmount: number;
   closingNeed: number;
   buydownNeed: number;
@@ -189,6 +192,8 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     electricMonthly,
     internetMonthly,
     tvMonthly,
+    closeDate,
+    pmiRatePct,
   } = inputs;
 
   const rate = rates[term];
@@ -282,7 +287,7 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     };
   }
 
-  const pmiAnnual = downPct < 20 ? loanAmount * 0.006 : 0;
+  const pmiAnnual = downPct < 20 ? (loanAmount * pmiRatePct) / 100 : 0;
 
   const monthlyTax = propertyTax / 12;
   const monthlyInsurance = insuranceAnnual / 12;
@@ -381,6 +386,17 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
   const closingCosts = (purchasePrice * closingCostPct) / 100;
   const prepaids =
     (monthlyTax + monthlyInsurance + monthlyFlood) * escrowMonths;
+
+  // Per-diem interest from close date through the end of that month.
+  // Zero until the user sets a close date, so existing scenarios are unaffected.
+  const prepaidInterestDays = closeDate
+    ? daysInMonthUTC(parseISO(closeDate).y, parseISO(closeDate).m) -
+      parseISO(closeDate).d +
+      1
+    : 0;
+  const prepaidInterest =
+    ((loanAmount * rate) / 100 / 365) * prepaidInterestDays;
+
   const sellerCreditAmount = (purchasePrice * sellerCreditPct) / 100;
   const closingNeed = closingCosts + prepaids;
   const buydownNeed = buydown && buydownFundedBySeller ? buydownSubsidy : 0;
@@ -401,7 +417,8 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
   const cashToClose =
     downPayment +
     closingCosts +
-    prepaids -
+    prepaids +
+    prepaidInterest -
     earnestDeposit -
     appliedToClosing +
     buydownCostToBuyer;
@@ -583,6 +600,8 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     totalMonthlySteadyState,
     closingCosts,
     prepaids,
+    prepaidInterestDays,
+    prepaidInterest,
     sellerCreditAmount,
     closingNeed,
     buydownNeed,

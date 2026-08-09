@@ -1,6 +1,10 @@
-import { MortgageCalculator } from "@/components/MortgageCalculator";
+import { useState } from "react";
+import { BuyingCalculator } from "@/components/BuyingCalculator";
+import { OwningCalculator } from "@/components/OwningCalculator";
+import { ModeSwitch } from "@/components/ModeSwitch";
 import { ScenarioBar } from "@/components/ScenarioBar";
 import { useScenarios } from "@/hooks/useScenarios";
+import { isLoanClosed, type LoanInputs } from "@/lib/defaults";
 
 function App() {
   const {
@@ -11,6 +15,7 @@ function App() {
     renameScenario,
     deleteScenario,
     selectScenario,
+    duplicateScenario,
   } = useScenarios();
 
   return (
@@ -34,12 +39,56 @@ function App() {
         onCreate={createScenario}
         onRename={renameScenario}
         onDelete={deleteScenario}
+        onDuplicate={duplicateScenario}
       />
-      <MortgageCalculator
+      {/* Keyed on the scenario id so switching scenarios remounts the
+          workspace — per-scenario view state resets itself instead of being
+          hand-synced back in an effect. */}
+      <ScenarioWorkspace
+        key={activeScenario.id}
         inputs={activeScenario.inputs}
         onChange={updateActiveInputs}
       />
     </div>
+  );
+}
+
+interface ScenarioWorkspaceProps {
+  inputs: LoanInputs;
+  onChange: (patch: Partial<LoanInputs>) => void;
+}
+
+// The app follows the loan's lifecycle rather than offering two modes to pick
+// between: while you're shopping there is only Buying, and no switch is
+// rendered at all. Recording your closing makes Owning the home view the
+// instant it happens — no effect has to chase the transition, because the view
+// is derived from whether the loan is closed. `peekBuying` is the one piece of
+// genuine UI state: a temporary detour back to the read-only plan you shopped
+// with, which only exists once there's something to detour from.
+//
+// An existing-owner scenario (`ownershipStatus: "existing"`) skips the switch
+// entirely — that loan was never shopped in this app, so there's no Buying
+// plan worth peeking at, only Owning.
+function ScenarioWorkspace({ inputs, onChange }: ScenarioWorkspaceProps) {
+  const [peekBuying, setPeekBuying] = useState(false);
+  const closedInputs = isLoanClosed(inputs) ? inputs : null;
+  const cameFromBuying = inputs.ownershipStatus === "shopping";
+
+  return (
+    <>
+      {closedInputs && cameFromBuying && (
+        <ModeSwitch
+          inputs={closedInputs}
+          view={peekBuying ? "buying" : "owning"}
+          onViewChange={(v) => setPeekBuying(v === "buying")}
+        />
+      )}
+      {closedInputs && (!cameFromBuying || !peekBuying) ? (
+        <OwningCalculator inputs={closedInputs} onChange={onChange} />
+      ) : (
+        <BuyingCalculator inputs={inputs} onChange={onChange} />
+      )}
+    </>
   );
 }
 

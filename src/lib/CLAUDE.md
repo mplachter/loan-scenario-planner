@@ -30,6 +30,48 @@ Key concepts, since the field names alone don't make these obvious:
 
 Numbers throughout are dollars (not cents) and percentages as `6.6` (not `0.066`) — matches the root `LoanInputs` convention; do not introduce cents or fractional-percent representations here.
 
+## `servicing.ts` — `simulateServicing` (Owning-mode engine)
+
+`plan.ts`/`computeMortgagePlan` is the **Buying-mode** engine: one loan, one optional refi, answered from `LoanInputs` directly. `servicing.ts`/`simulateServicing` is the **Owning-mode** engine: an arbitrary timeline of `MortgageEvent`s (`events.ts`) applied to a loan, simulated month by month into a `LedgerRow[]`. They are deliberately not merged — Buying mode keeps calling `computeMortgagePlan` unchanged; Owning mode calls `simulateServicing`. `mortgage.ts`'s `amortize` isn't reused here (no per-month row object, and the ledger needs one) — `simulateServicing` writes its own loop but still calls `pmt`.
+
+### The event model
+
+Five kinds (`MortgageEventKind`): `refinance`, `extra` (recurring, monthly or annual, optional `endMonth`), `lump` (one-time), `recast`, `escrow` (override). Any number of events, of any kind, may coexist on one timeline, including several in the same month.
+
+### Composition rules (the non-obvious part — this is why the tests look the way they do)
+
+1. **Extras survive refinances.** A recurring `extra` event runs from its `month` until its `endMonth` (or payoff) straight through any refinance in between — nothing in the extras step (step 7 below) consults refinance state. Stopping early is expressed by setting `endMonth`, not by a separate flag.
+2. **Extras of different cadences sum.** A monthly extra and an annual bonus landing in the same month both contribute — never let one shadow the other.
+3. **Recast re-amortizes over the _contractual_ remaining term, not the projected payoff.** `remainingMonths` is a counter decremented once per month (at the top of the month's processing, before any event is applied — so mid-month it already reads "months left after this month's payment," e.g. 300 at month 60 of a fresh 30-year loan) and reset to `ev.termYears * 12 - 1` on refinance (one payment of the fresh term is already spoken for, since refinance is applied before the payment step). It is **never** derived from the balance. This matters when extras are stacked: someone paying extra every month is projected to pay off years early but still has the full contractual term left, and a recast uses the contractual figure.
+4. **PMI re-evaluates after every refinance.** A cash-out refi that pushes the new balance above 80% of the current appreciated home value brings PMI back, restarting the 78%-termination clock against the new balance/value. PMI is tracked as **periods** (`{ startMonth, endMonth }[]`), not a one-way switch, precisely because of this.
+5. **Escrow drift compounds independently of everything else.** Taxes and insurance climb on their own anniversary schedule (`escrowDriftEnabled`/`taxInflationPct`/`insuranceInflationPct`) regardless of refinances, recasts, or payoff acceleration — they follow the house, not the loan. An explicit `escrow` event overrides the drifted running value for that field only (`null` leaves the other field alone).
+6. **Same-month ordering is fixed**: escrow changes → refinance → recast → payment (interest, scheduled principal, then extras/lumps, clamped at payoff). Two refinances in the same month chain sequentially (each operates on the balance the previous one left), so the later one in array order determines the final rate/term/balance ("last wins").
+
+### Within-month order of operations
+
+1. Escrow anniversary drift (once every 12 months, skipped on month 1).
+2. Explicit `escrow` events override the drifted values.
+3. `refinance` events: `payoffBalance` → `costs` → `newBalance` (cash-out and/or rolled-in costs) → new `rate`/`scheduledPI`/`remainingMonths`; records a `RefinanceSummary` (old vs. new payment, `breakevenMonths` — `null` unless the new payment is lower, mirroring `plan.ts`'s `refiPlan` convention — and `termResetMonths`).
+4. `recast` events: lump sum reduces balance directly (not through the normal principal/extra clamp), `scheduledPI` is recomputed at the **unchanged** rate over `remainingMonths`, fee is out-of-pocket.
+5. Interest accrues on the post-refi/post-recast balance.
+6. Scheduled principal = `scheduledPI - interest` (floored at 0).
+7. Extras: sum every applicable `extra`/`lump` event, never pick one (rules 1–2).
+8. Clamp at payoff: scheduled principal first, then extras, capped at the remaining balance — this is what keeps `startBalance - principal - extra === endBalance` exact on every row (`startBalance` is captured after refinance but before recast, so a recast's lump sum is folded into `extra`, not double-counted).
+9. PMI: a self-contained block (conventional-loan rules specifically — 80%-request / 78%-auto / 2-year appraisal path) so a future `loanProgram` field has one obvious place to branch; FHA/VA follow entirely different mortgage-insurance rules and must not leak in here.
+10. Push the `LedgerRow`.
+
+Loop guard: `while (balance > 1 && m < MAX_MONTHS)` with `MAX_MONTHS = 40 * 12` — a safety bound against pathological event chains, not a real amortization limit, mirroring `amortize`'s cap.
+
+`ServicingResult.pmiRequestMonth`/`pmiAutoMonth`/`pmiAppraisalMonth` report the next-upcoming milestones for whichever PMI period is active **as of `ctx.today`** (not whichever period happens to be open at the very end of a full 30-year simulation — PMI is usually long gone by then). This is why `ServicingContext` carries `today` alongside `firstPaymentDate`.
+
+### Leave-one-out attribution
+
+`attributeEvents` re-simulates the timeline once per enabled event with that event removed and diffs against the full run (`N + 1` simulations for `N` events; returns `[]` above 25 events). It's order-independent and honest about interaction — the parts are **not** made to sum to the whole; UI copy should say "approximate" rather than trying to reconcile them.
+
+### Testing
+
+`servicing.test.ts` follows `plan.test.ts`'s conventions (`toBeCloseTo` for money, relational assertions over hardcoded magic numbers). The anchor test is the empty-timeline case matching `amortize`'s payoff month/total interest — every other test builds on that baseline being trustworthy.
+
 ## Testing
 
 `mortgage.test.ts` and `plan.test.ts` cover the primitives and a few representative scenarios (PMI threshold, loan-amount arithmetic) — not exhaustive coverage of every derived field. When changing formulas here, prefer adding a targeted test over trusting manual inspection, since a wrong constant (e.g. the PMI rate `0.006`, the buydown floor `0.25`) is easy to typo and hard to eyeball-verify from the UI.

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +22,7 @@ interface ScenarioBarProps {
   onCreate: () => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  onDuplicate: (id: string) => void;
 }
 
 export function ScenarioBar({
@@ -31,6 +32,7 @@ export function ScenarioBar({
   onCreate,
   onRename,
   onDelete,
+  onDuplicate,
 }: ScenarioBarProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -87,6 +89,14 @@ export function ScenarioBar({
                 <Pencil />
               </Button>
             )}
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Duplicate ${scenario.name}`}
+              onClick={() => onDuplicate(scenario.id)}
+            >
+              <Copy />
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger
                 render={

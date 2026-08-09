@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { Card, CardContent } from "@/components/ui/card";
+import { Explain } from "@/components/ui/explainer";
 import { Field } from "@/components/ui/field";
 import { NumberInput } from "@/components/ui/number-input";
 import { SectionTitle } from "@/components/ui/section-title";
@@ -88,7 +89,11 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
   return (
     <>
       <SectionTitle
-        title="Strategy fit"
+        title={
+          <>
+            Strategy fit <Explain k="breakeven" />
+          </>
+        }
         note={`How your extra-payment and refinance choices line up with a ${holdYears}-year hold.`}
       />
       <Card className="mb-6">
@@ -132,7 +137,11 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
       </Card>
 
       <SectionTitle
-        title="2-1 rate buydown"
+        title={
+          <>
+            2-1 rate buydown <Explain k="buydown" />
+          </>
+        }
         note="Temporarily lowers your out-of-pocket payment in years 1-2 by 2% and 1%. The loan still amortizes at the full note rate — a subsidy account (funded by you or the seller) makes up the difference."
       />
       <Card className="mb-6">
@@ -185,7 +194,11 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
       </Card>
 
       <SectionTitle
-        title="Discount points"
+        title={
+          <>
+            Discount points <Explain k="points" />
+          </>
+        }
         note="Pay upfront at closing to buy down your note rate for the life of the loan — each point costs 1% of your loan amount and is assumed to lower your rate by 0.25% (a fixed rule-of-thumb, similar to how the 2-1 buydown uses a fixed -2/-1 structure)."
       />
       <Card className="mb-6">
@@ -512,7 +525,11 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
       )}
 
       <SectionTitle
-        title="Refinance later"
+        title={
+          <>
+            Refinance later <Explain k="refinance" />
+          </>
+        }
         note="Model swapping your loan for a new one partway through — a common move if rates drop or your income situation changes."
       />
       <Card className="mb-6">
@@ -607,8 +624,8 @@ export function StrategyTab({ inputs, onChange, plan }: StrategyTabProps) {
                 </Field>
               </div>
 
-              <div className="mb-2 text-xs font-medium text-slate-600">
-                New loan term
+              <div className="mb-2 text-xs font-medium text-slate-600 flex items-center gap-1">
+                New loan term <Explain k="clockReset" />
               </div>
               <ToggleGroup
                 variant="outline"

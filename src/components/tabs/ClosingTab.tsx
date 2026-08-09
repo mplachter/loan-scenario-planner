@@ -1,8 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card";
+import { Explain } from "@/components/ui/explainer";
 import { Field } from "@/components/ui/field";
 import { InlineNumberInput } from "@/components/ui/inline-number-input";
 import { NumberInput } from "@/components/ui/number-input";
 import { SectionTitle } from "@/components/ui/section-title";
+import { CloseLoanDialog } from "@/components/CloseLoanDialog";
+import { firstPaymentDateFor, formatFullDate } from "@/lib/dates";
 import type { LoanInputs } from "@/lib/defaults";
 import { usd0 } from "@/lib/mortgage";
 import type { MortgagePlan } from "@/lib/plan";
@@ -24,11 +27,13 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
     sellerCreditPct,
     reserves,
     maxConcessionPct,
+    closeDate,
   } = inputs;
   const {
     downPayment,
     closingCosts,
     prepaids,
+    prepaidInterest,
     appliedToClosing,
     sellerCreditWasted,
     maxUsableSellerCredit,
@@ -57,6 +62,25 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
             <div>
               <div className="text-sm font-medium text-slate-700 mb-3">
                 Cash needed at closing
+              </div>
+              <div className="mb-4 max-w-xs">
+                <Field
+                  label="Close date (optional)"
+                  hint={
+                    closeDate
+                      ? `First payment due ${formatFullDate(firstPaymentDateFor(closeDate))}`
+                      : "Set this once you have a scheduled closing to see prepaid interest below."
+                  }
+                >
+                  <input
+                    type="date"
+                    value={closeDate ?? ""}
+                    onChange={(e) =>
+                      onChange({ closeDate: e.target.value || null })
+                    }
+                    className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm"
+                  />
+                </Field>
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -89,6 +113,14 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
                   </span>
                   <span>{usd0(prepaids)}</span>
                 </div>
+                {closeDate && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 flex items-center gap-1">
+                      Prepaid interest <Explain k="prepaidInterest" />
+                    </span>
+                    <span>{usd0(prepaidInterest)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 flex items-center gap-1">
                     Less: earnest deposit paid ($
@@ -222,8 +254,8 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
             </div>
 
             <div>
-              <div className="text-sm font-medium text-slate-700 mb-3">
-                Seller concession ceiling
+              <div className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-1">
+                Seller concession ceiling <Explain k="sellerCredit" />
               </div>
               <div className="text-xs text-slate-500 mb-2">
                 Conventional loans cap seller-paid credits by loan-to-value —
@@ -286,6 +318,30 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      {inputs.mode === "buying" && (
+        <Card className="mb-6 bg-slate-900 !border-slate-900 text-white">
+          <CardContent>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold">
+                  Closed on this loan?
+                </div>
+                <div className="text-xs text-slate-300 mt-1">
+                  Switch to Owning mode to track your actual balance, model
+                  refinances and extra payments, and manage the mortgage going
+                  forward.
+                </div>
+              </div>
+              <CloseLoanDialog
+                inputs={inputs}
+                onChange={onChange}
+                plan={plan}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </>
   );
 }

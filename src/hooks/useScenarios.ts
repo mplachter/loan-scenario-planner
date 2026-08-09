@@ -73,6 +73,25 @@ export function useScenarios() {
     setStore((prev) => ({ ...prev, activeScenarioId: id }));
   }
 
+  function duplicateScenario(id: string) {
+    setStore((prev) => {
+      const source = prev.scenarios.find((s) => s.id === id);
+      if (!source) return prev;
+      const now = new Date().toISOString();
+      const copy: Scenario = {
+        id: crypto.randomUUID(),
+        name: `${source.name} copy`,
+        createdAt: now,
+        updatedAt: now,
+        inputs: structuredClone(source.inputs),
+      };
+      return {
+        scenarios: [...prev.scenarios, copy],
+        activeScenarioId: copy.id,
+      };
+    });
+  }
+
   return {
     scenarios: store.scenarios,
     activeScenario: activeScenario as Scenario,
@@ -81,5 +100,6 @@ export function useScenarios() {
     renameScenario,
     deleteScenario,
     selectScenario,
+    duplicateScenario,
   };
 }
