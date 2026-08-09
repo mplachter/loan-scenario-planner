@@ -77,6 +77,11 @@ export interface LoanInputs {
 
   // --- sell analysis (Phase 5) ---
   sellingCostPct: number;
+  // The sale year the Equity & sell tab models. `null` means "follow
+  // `holdYears`" — the ownership horizon set at loan setup — so a fresh
+  // scenario inherits that plan instead of a hardcoded year. Once the user
+  // drags the sale-year slider, this holds their pick for this scenario only.
+  saleYear: number | null;
 
   // --- prepay vs invest (Phase 5) ---
   investReturnPct: number;
@@ -189,6 +194,7 @@ export const DEFAULT_INPUTS: LoanInputs = {
   insuranceInflationPct: 6,
 
   sellingCostPct: 7,
+  saleYear: null,
 
   investReturnPct: 7,
   investTaxRatePct: 15,

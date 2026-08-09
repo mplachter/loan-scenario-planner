@@ -52,13 +52,25 @@ describe("EquitySellTab", () => {
     expect(onChange).toHaveBeenLastCalledWith({ sellingCostPct: 6 });
   });
 
-  it("moving the sale-year slider updates local state without calling the parent onChange", async () => {
-    const { onChange } = renderEquitySellTab();
+  it("defaults the sale year to the ownership horizon from setup", () => {
+    renderEquitySellTab({ holdYears: 12, saleYear: null });
+
+    expect(screen.getByText("Year 12 of ownership")).toBeInTheDocument();
+  });
+
+  it("prefers a saved sale year over the ownership horizon", () => {
+    renderEquitySellTab({ holdYears: 12, saleYear: 7 });
+
+    expect(screen.getByText("Year 7 of ownership")).toBeInTheDocument();
+  });
+
+  it("patches saleYear when the sale-year slider moves", async () => {
+    const { onChange } = renderEquitySellTab({ holdYears: 12, saleYear: null });
     const thumb = screen.getAllByRole("slider", { hidden: true })[0]!;
 
     thumb.focus();
     await userEvent.keyboard("{ArrowRight}");
 
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenLastCalledWith({ saleYear: 13 });
   });
 });
