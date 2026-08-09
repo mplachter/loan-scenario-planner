@@ -25,4 +25,4 @@ Data flow is one-directional and un-memoized beyond React's own re-render: `Loan
 - TypeScript `strict` mode with `noUnusedLocals`/`noUnusedParameters` — unused code is a build error, not a lint warning.
 - Formatting is Prettier-owned (empty `.prettierrc.json` = all defaults); don't hand-format against it. ESLint (`eslint.config.js`) covers React hooks rules and TS; `eslint-config-prettier` disables stylistic overlap.
 - Money values are plain `number`s (dollars, not cents); percentages are plain numbers like `6.6` meaning 6.6%, not `0.066`. Match this convention in any new fields — don't introduce a mixed units representation.
-- Tests live next to source as `*.test.ts` (see `lib/mortgage.test.ts`, `lib/plan.test.ts`) and run under Vitest's `node` environment — no DOM/component tests currently exist in this repo.
+- Tests live next to source as `*.test.ts` (lib, `node` environment) or `*.test.tsx` (components, `jsdom` via `environmentMatchGlobs`) — see `src/lib/CLAUDE.md`'s `## Testing` section for the full convention writeup.
