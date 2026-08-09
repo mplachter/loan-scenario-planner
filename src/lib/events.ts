@@ -63,6 +63,26 @@ export interface TimelineVariant {
   events: MortgageEvent[];
 }
 
+// Order-independent identity for a timeline: event array order and key insertion
+// order both drift as the UI patches events (`{ ...e, ...patch }`), so both are
+// normalized away before comparing. Used to tell whether the current timeline
+// still matches the saved variant it was loaded from.
+function timelineKey(events: MortgageEvent[]): string {
+  return JSON.stringify(
+    [...events]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((e) =>
+        Object.fromEntries(
+          Object.entries(e).sort(([a], [b]) => a.localeCompare(b)),
+        ),
+      ),
+  );
+}
+
+export function eventsEqual(a: MortgageEvent[], b: MortgageEvent[]): boolean {
+  return a.length === b.length && timelineKey(a) === timelineKey(b);
+}
+
 export const EVENT_LABELS: Record<MortgageEventKind, string> = {
   refinance: "Refinance",
   extra: "Recurring extra",

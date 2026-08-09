@@ -67,6 +67,8 @@ export interface LoanInputs {
   // --- owning timeline (Phase 2/3/4 populate these) ---
   events: MortgageEvent[];
   variants: TimelineVariant[];
+  // the saved variant `events` was last loaded from / saved to, if any
+  activeVariantId: string | null;
 
   // --- escrow drift (Phase 5) ---
   escrowDriftEnabled: boolean;
@@ -180,6 +182,7 @@ export const DEFAULT_INPUTS: LoanInputs = {
 
   events: [],
   variants: [],
+  activeVariantId: null,
 
   escrowDriftEnabled: true,
   taxInflationPct: 3,
