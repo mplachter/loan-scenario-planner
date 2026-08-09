@@ -28,10 +28,12 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
     reserves,
     maxConcessionPct,
     closeDate,
+    points,
   } = inputs;
   const {
     downPayment,
     closingCosts,
+    pointsCost,
     prepaids,
     prepaidInterest,
     appliedToClosing,
@@ -102,6 +104,19 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 flex items-center gap-1">
+                    Discount points (
+                    <InlineNumberInput
+                      value={points}
+                      step={0.125}
+                      onChange={(v) => onChange({ points: v })}
+                      className="w-12 border-b border-slate-300 text-center"
+                    />
+                    pts) <Explain k="points" />
+                  </span>
+                  <span>{usd0(pointsCost)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 flex items-center gap-1">
                     Escrow prepaids (
                     <InlineNumberInput
                       value={escrowMonths}
@@ -153,6 +168,7 @@ export function ClosingTab({ inputs, onChange, plan }: ClosingTabProps) {
                   <div className="text-xs text-amber-700 -mt-1 pl-2">
                     ↳ {usd0(sellerCreditWasted)} of that can't be used — credits
                     only offset closing costs, prepaids
+                    {pointsCost > 0 ? ", discount points" : ""}
                     {buydown && buydownFundedBySeller
                       ? ", and your buydown subsidy"
                       : ""}{" "}

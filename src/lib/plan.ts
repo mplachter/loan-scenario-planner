@@ -398,7 +398,10 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
     ((loanAmount * rate) / 100 / 365) * prepaidInterestDays;
 
   const sellerCreditAmount = (purchasePrice * sellerCreditPct) / 100;
-  const closingNeed = closingCosts + prepaids;
+  // Discount points are paid at the closing table, so they sit inside
+  // `closingNeed` alongside closing costs and prepaids — seller credit offsets
+  // them under the same waterfall (points are an allowed concession use).
+  const closingNeed = closingCosts + pointsCost + prepaids;
   const buydownNeed = buydown && buydownFundedBySeller ? buydownSubsidy : 0;
 
   const appliedToClosing = Math.min(sellerCreditAmount, closingNeed);
@@ -417,6 +420,7 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
   const cashToClose =
     downPayment +
     closingCosts +
+    pointsCost +
     prepaids +
     prepaidInterest -
     earnestDeposit -
@@ -433,6 +437,7 @@ export function computeMortgagePlan(inputs: LoanInputs): MortgagePlan {
   const sellerCreditExceedsCap = totalSellerAsk > maxConcessionAmount;
 
   const cashToCloseNotes: string[] = [];
+  if (pointsCost > 0) cashToCloseNotes.push(`${points} pts included`);
   if (appliedToClosing > 0)
     cashToCloseNotes.push(`${sellerCreditPct}% seller credit`);
   if (buydownCostToBuyer > 0)

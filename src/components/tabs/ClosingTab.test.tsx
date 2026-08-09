@@ -147,6 +147,25 @@ describe("ClosingTab", () => {
     expect(onChange).toHaveBeenCalledWith({ buydownFundedBySeller: true });
   });
 
+  it("shows the discount-points cost as a closing-cost line item", () => {
+    const { plan } = renderClosingTab({ points: 2 });
+    const pointsLine = screen.getByText(/Discount points/).closest("div")!;
+    expect(
+      within(pointsLine).getByText(usd0(plan.pointsCost)),
+    ).toBeInTheDocument();
+  });
+
+  it("patches points from the closing-costs line item", () => {
+    const { onChange } = renderClosingTab({ points: 1 });
+    const pointsLine = screen.getByText(/Discount points/).closest("div")!;
+
+    fireEvent.change(within(pointsLine).getByDisplayValue("1"), {
+      target: { value: "2" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith({ points: 2 });
+  });
+
   it("patches maxConcessionPct to the LTV-derived value via 'Est. from LTV'", async () => {
     const { plan, onChange } = renderClosingTab({ downPct: 5 });
 
