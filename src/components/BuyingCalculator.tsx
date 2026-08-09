@@ -357,6 +357,12 @@ export function BuyingCalculator({
                         <span>Leftover</span>
                         <span>{usd0(leftoverBreakdown.leftover)}</span>
                       </div>
+                      {leftoverBreakdown.bonusSpread > 0 && (
+                        <div className="flex justify-between gap-4">
+                          <span>Bonus spread monthly</span>
+                          <span>+{usd0(leftoverBreakdown.bonusSpread)}</span>
+                        </div>
+                      )}
                     </div>
                   </TooltipContent>
                 </Tooltip>

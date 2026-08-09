@@ -1,4 +1,9 @@
 export type PayFrequency = "weekly" | "biweekly" | "semimonthly" | "monthly";
+// What the household intends to do with an annual bonus. Either way the bonus
+// stays *out* of monthly take-home income — a once-a-year lump isn't income you
+// can spend every month, and smoothing it into the income line quietly inflates
+// every leftover/affordability number that reads from it.
+export type BonusUse = "spread" | "mortgage";
 export type BudgetCategory = "needs" | "wants" | "savings";
 
 export interface BudgetItem {
@@ -78,6 +83,7 @@ export interface Household {
   netPayPerPaycheck: number;
   annualBonusNet: number; // take-home estimate of any bonus, not gross
   bonusMonth: number; // 1-indexed calendar month
+  bonusUse: BonusUse;
   budgetItems: BudgetItem[];
 }
 
@@ -86,5 +92,6 @@ export const DEFAULT_HOUSEHOLD: Household = {
   netPayPerPaycheck: 0,
   annualBonusNet: 0,
   bonusMonth: 3,
+  bonusUse: "mortgage",
   budgetItems: STARTER_BUDGET_ITEMS,
 };

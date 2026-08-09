@@ -15,6 +15,7 @@ import {
   monthlyTakeHomeIncome,
 } from "@/lib/budget";
 import type {
+  BonusUse,
   BudgetCategory,
   BudgetItem,
   Household,
@@ -33,6 +34,11 @@ const PAY_FREQUENCY_LABELS: Record<PayFrequency, string> = {
   biweekly: "Biweekly",
   semimonthly: "Twice a month",
   monthly: "Monthly",
+};
+
+const BONUS_USE_LABELS: Record<BonusUse, string> = {
+  spread: "Spread across the year",
+  mortgage: "Put it toward the loan",
 };
 
 const CATEGORY_ORDER: BudgetCategory[] = ["needs", "wants", "savings"];
@@ -83,13 +89,17 @@ export function BudgetTab({
     netPayPerPaycheck,
     annualBonusNet,
     bonusMonth,
+    bonusUse,
     budgetItems,
   } = household;
 
   const income = monthlyTakeHomeIncome(household);
   const total = budgetTotal(budgetItems);
   const byCategory = budgetByCategory(budgetItems);
-  const { leftover } = monthlyLeftover(household, housingPayment);
+  const { leftover, bonusSpread, leftoverWithBonus } = monthlyLeftover(
+    household,
+    housingPayment,
+  );
 
   const needsPct =
     income > 0 ? ((byCategory.needs + housingPayment) / income) * 100 : 0;
@@ -164,6 +174,20 @@ export function BudgetTab({
                 )}
               </ToggleGroup>
             </Field>
+          </div>
+          <div className="text-sm text-slate-600">
+            ≈ {usd0(income)}/mo take-home
+            <span className="text-slate-400"> (paychecks only)</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-6">
+        <CardContent>
+          <div className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-1">
+            Annual bonus <Explain k="bonusIsNotIncome" />
+          </div>
+          <div className="grid md:grid-cols-2 gap-4 mb-4">
             <Field label="Annual bonus (take-home estimate, optional)">
               <NumberInput
                 value={annualBonusNet}
@@ -187,9 +211,39 @@ export function BudgetTab({
                 ))}
               </select>
             </Field>
+            <Field label="What you'd do with it">
+              <ToggleGroup
+                variant="outline"
+                value={[bonusUse]}
+                onValueChange={(vals) => {
+                  const next = vals[0];
+                  if (next) onHouseholdChange({ bonusUse: next as BonusUse });
+                }}
+                className="flex-wrap"
+              >
+                {(Object.keys(BONUS_USE_LABELS) as BonusUse[]).map((u) => (
+                  <ToggleGroupItem key={u} value={u}>
+                    {BONUS_USE_LABELS[u]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </Field>
           </div>
           <div className="text-sm text-slate-600">
-            ≈ {usd0(income)}/mo take-home
+            {annualBonusNet <= 0 ? (
+              <>Not counted as monthly income either way.</>
+            ) : bonusUse === "spread" ? (
+              <>
+                ≈ {usd0(bonusSpread)}/mo of extra spending money on top of the
+                leftover below — not part of the take-home income line.
+              </>
+            ) : (
+              <>
+                {usd0(annualBonusNet)} toward principal each{" "}
+                {MONTH_NAMES[bonusMonth - 1]} — add it on the Timeline tab with
+                “+ Annual bonus”, which is pre-filled from these numbers.
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -324,7 +378,25 @@ export function BudgetTab({
               <span>Leftover</span>
               <span>{usd0(leftover)}</span>
             </div>
+            {bonusSpread > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Bonus spread monthly</span>
+                  <span>+{usd0(bonusSpread)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Leftover incl. bonus</span>
+                  <span>{usd0(leftoverWithBonus)}</span>
+                </div>
+              </>
+            )}
           </div>
+          {bonusUse === "mortgage" && annualBonusNet > 0 && (
+            <div className="mt-3 text-xs text-slate-500">
+              Your {usd0(annualBonusNet)} bonus is earmarked for the loan, so it
+              is not counted here.
+            </div>
+          )}
         </CardContent>
       </Card>
     </>

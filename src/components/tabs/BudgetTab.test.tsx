@@ -127,4 +127,50 @@ describe("BudgetTab", () => {
     expect(screen.getAllByText("Leftover").length).toBeGreaterThan(0);
     expect(screen.getByText("$3,000")).toBeInTheDocument();
   });
+
+  it("patches bonusUse when a bonus-use toggle item is clicked", async () => {
+    const { onHouseholdChange } = renderBudgetTab({ bonusUse: "mortgage" });
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Spread across the year" }),
+    );
+
+    expect(onHouseholdChange).toHaveBeenCalledWith({ bonusUse: "spread" });
+  });
+
+  it("keeps a bonus out of the leftover line and shows it as a separate spread row", () => {
+    renderBudgetTab(
+      {
+        budgetItems: [],
+        payFrequency: "monthly",
+        netPayPerPaycheck: 5000,
+        annualBonusNet: 12000,
+        bonusUse: "spread",
+      },
+      2000,
+    );
+
+    // Leftover is still paycheck-only ($5,000 - $2,000); the bonus shows up
+    // as its own +$1,000/mo row, not folded into income.
+    expect(screen.getByText("$3,000")).toBeInTheDocument();
+    expect(screen.getByText("Bonus spread monthly")).toBeInTheDocument();
+    expect(screen.getByText("+$1,000")).toBeInTheDocument();
+    expect(screen.getByText("$4,000")).toBeInTheDocument();
+  });
+
+  it("omits the spread row entirely when the bonus is earmarked for the loan", () => {
+    renderBudgetTab(
+      {
+        budgetItems: [],
+        payFrequency: "monthly",
+        netPayPerPaycheck: 5000,
+        annualBonusNet: 12000,
+        bonusUse: "mortgage",
+      },
+      2000,
+    );
+
+    expect(screen.getByText("$3,000")).toBeInTheDocument();
+    expect(screen.queryByText("Bonus spread monthly")).not.toBeInTheDocument();
+  });
 });
